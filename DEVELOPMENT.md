@@ -4,11 +4,11 @@ This repository is set up for local Factorio mod development on Windows.
 
 ## What is already configured
 
-- The repo is checked out at `E:\code\factorio`.
-- Factorio was detected at `E:\SteamLibrary\steamapps\common\Factorio`.
-- The default isolated dev profile root is `E:\code\factorio-dev-profile`.
-- The default isolated dev mods directory is `E:\code\factorio-dev-profile\mods`.
-- The default isolated dev write-data directory is `E:\code\factorio-dev-profile\player-data`.
+- The repo includes PowerShell helpers for an isolated local Factorio dev workflow.
+- The helpers auto-detect common Windows Factorio install locations or accept `-FactorioRoot`.
+- The default isolated dev profile root is a sibling directory named `<repo-name>-dev-profile`.
+- The default isolated dev mods directory is `<dev-profile>\mods`.
+- The default isolated dev write-data directory is `<dev-profile>\player-data`.
 
 ## Core workflow
 

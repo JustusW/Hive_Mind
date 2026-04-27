@@ -9,7 +9,7 @@
 - `info.json` now targets **Factorio 2.0** and depends only on `base >= 2.0.0`.
 - `changelog.txt` already includes a `0.5.0` entry for the 2.0 port branch.
 - The old `Unit_Control` dependency is gone; the remaining internal assumptions are now owned directly inside this repo.
-- The development environment now uses an isolated sibling profile at `E:\code\factorio-dev-profile` instead of the shared `%APPDATA%\Factorio\mods` folder.
+- The development environment now uses an isolated sibling profile outside the repo instead of the shared `%APPDATA%\Factorio\mods` folder.
 - Headless validation currently passes:
   - `powershell -ExecutionPolicy Bypass -File .\tools\check-load.ps1`
   - `powershell -ExecutionPolicy Bypass -File .\tools\check-runtime.ps1 -UntilTick 3600`
