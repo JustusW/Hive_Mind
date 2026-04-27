@@ -222,28 +222,57 @@ util.copy = util.table.deepcopy
 
 util.prototype = require("data/tf_util/prototype_util")
 
+local collision_layer_aliases =
+{
+  ["ground-tile"] = "ground_tile",
+  ["water-tile"] = "water_tile",
+  ["item-layer"] = "item",
+  ["object-layer"] = "object",
+  ["player-layer"] = "player",
+  ["train-layer"] = "train",
+  ["floor-layer"] = "floor",
+  ["resource-layer"] = "resource",
+  ["doodad-layer"] = "doodad",
+  ["rail-layer"] = "rail",
+  ["rail-support-layer"] = "rail_support",
+  ["lava-tile"] = "lava_tile"
+}
+
+util.mask = function(layer_names)
+  local mask = {layers = {}}
+  for _, layer_name in pairs(layer_names) do
+    if layer_name == "not-colliding-with-itself" then
+      mask.not_colliding_with_itself = true
+    else
+      local normalized_name = collision_layer_aliases[layer_name] or layer_name
+      mask.layers[normalized_name] = true
+    end
+  end
+  return mask
+end
+
 util.flying_unit_collision_mask = function()
-  return {"not-colliding-with-itself", "layer-15"}
+  return util.mask({"not-colliding-with-itself", "layer-15"})
 end
 
 util.ground_unit_collision_mask = function()
-  return {"not-colliding-with-itself", "player-layer", "train-layer"}
+  return util.mask({"not-colliding-with-itself", "player-layer", "train-layer"})
 end
 
 util.projectile_collision_mask = function()
-  return {"layer-15", "player-layer", "train-layer"}
+  return util.mask({"layer-15", "player-layer", "train-layer"})
 end
 
 util.creep_collision_mask = function()
-  return {"item-layer", "floor-layer"}
+  return util.mask({"item-layer", "floor-layer"})
 end
 
 util.buildable_on_creep_collision_mask = function()
-  return {"ground-tile", "water-tile", "player-layer"}
+  return util.mask({"ground-tile", "water-tile", "player-layer"})
 end
 
 util.default_building_collision_mask = function()
-  return {"item-layer", "object-layer", "player-layer", "water-tile"}
+  return util.mask({"item-layer", "object-layer", "player-layer", "water-tile"})
 end
 
 util.unit_flags = function()

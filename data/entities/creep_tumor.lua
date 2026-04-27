@@ -1,6 +1,7 @@
 local name = names.creep_tumor
 local util = require("__Hive_Mind__/data/tf_util/tf_util")
 local graphics = util.copy(data.raw["unit-spawner"]["biter-spawner"])
+local animations = (graphics.graphics_set and graphics.graphics_set.animations) or graphics.animations
 
 util.recursive_hack_scale(graphics, 1/5)
 util.recursive_hack_tint(graphics, {r = 0.5, b = 0.5})
@@ -25,10 +26,10 @@ local entity =
   order = name,
   minable = nil,
   max_health = 20,
-  collision_mask = {"ground-tile", "water-tile"},
+  collision_mask = util.mask({"ground-tile", "water-tile"}),
   collision_box = {{-0.48, -0.48}, {0.48, 0.48}},
   selection_box = {{-0.5, -0.5}, {0.5, 0.5}},
-  animations = graphics.animations,
+  animations = animations,
   dying_explosion = graphics.dying_explosion,
   friendly_map_color = {r = 0.5, b = 0.5}
 }
@@ -46,7 +47,7 @@ local item =
   type = "item",
   name = name,
   localised_name = {name},
-  localised_description = {"requires-pollution", names.required_pollution[name] * names.pollution_cost_multiplier},
+  localised_description = {"requires-pollution", tostring(names.required_pollution[name] * names.pollution_cost_multiplier)},
   icons = entity.icons,
   flags = {},
   subgroup = subgroup.name,

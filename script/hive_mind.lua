@@ -49,9 +49,9 @@ local reset_hivemind_force = function()
     tech.enabled = is_hivemind_technology(tech)
   end
 
-  force.evolution_factor = enemy_force.evolution_factor
+  force.set_evolution_factor(enemy_force.get_evolution_factor())
   for k, recipe in pairs (force.recipes) do
-    recipe.enabled = names.default_unlocked[recipe.name]
+    recipe.enabled = names.default_unlocked[recipe.name] or false
   end
 
 end
@@ -120,7 +120,7 @@ local characters =
 local create_character = function(player)
 
   local force = player.force
-  local factor = force.evolution_factor
+  local factor = force.get_evolution_factor()
   local name = names.players.small_biter_player
   for character, minimum_factor in pairs (characters) do
     if factor >= minimum_factor then

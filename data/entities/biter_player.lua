@@ -12,18 +12,21 @@ local ugly_hack = function(layers)
   end
 end
 
+local set_runtime_tint = function(layer)
+  layer.apply_runtime_tint = true
+  if layer.hr_version then
+    layer.hr_version.apply_runtime_tint = true
+  end
+end
+
 local make_biter_player = function(name, graphics)
   local player = util.copy(data.raw.character.character)
   local biter_walk = graphics.run_animation
-  biter_walk.layers[2].apply_runtime_tint = true
-  biter_walk.layers[2].hr_version.apply_runtime_tint = true
-  biter_walk.layers[3].apply_runtime_tint = true
-  biter_walk.layers[3].hr_version.apply_runtime_tint = true
+  set_runtime_tint(biter_walk.layers[2])
+  set_runtime_tint(biter_walk.layers[3])
   local biter_attack = graphics.attack_parameters.animation
-  biter_attack.layers[2].apply_runtime_tint = true
-  biter_attack.layers[2].hr_version.apply_runtime_tint = true
-  biter_attack.layers[3].apply_runtime_tint = true
-  biter_attack.layers[3].hr_version.apply_runtime_tint = true
+  set_runtime_tint(biter_attack.layers[2])
+  set_runtime_tint(biter_attack.layers[3])
 
   local running_with_gun = util.copy(biter_attack)
   ugly_hack(running_with_gun.layers)
@@ -111,13 +114,13 @@ local make_biter_player = function(name, graphics)
     localised_name = {"biter-gun"},
     icon = graphics.icon,
     icon_size = graphics.icon_size,
+    ammo_category = util.ammo_category(name),
     ammo_type = graphics.attack_parameters.ammo_type,
     magazine_size = 1,
     subgroup = "ammo",
     order = name.."-ammo",
     stack_size = 1
   }
-  ammo.ammo_type.category = util.ammo_category(name)
   data:extend
   {
     player,
@@ -139,7 +142,7 @@ make_biter_player(names.players.behemoth_biter_player, util.copy(data.raw.unit["
 --flame.spawn_entity = flame.name
 
 local fire_on_tree = data.raw.fire["fire-flame-on-tree"]
-fire_on_tree.emissions_per_second = 0.05
+fire_on_tree.emissions_per_second = {pollution = 0.05}
 fire_on_tree.damage_per_tick.amount = 3 / 60
 fire_on_tree.spread_delay = 300
 fire_on_tree.initial_lifetime = 600
@@ -173,7 +176,6 @@ local firestarter_ammo_type =
     },
     type = "direct"
   },
-  category = util.ammo_category("firestarter-gun"),
   target_type = "entity",
 }
 
@@ -197,6 +199,7 @@ local firestarter_ammo =
   localised_name = {shared.firestarter_gun},
   icon = icon,
   icon_size = icon_size,
+  ammo_category = util.ammo_category("firestarter-gun"),
   ammo_type = firestarter_ammo_type,
   magazine_size = 1,
   subgroup = "ammo",

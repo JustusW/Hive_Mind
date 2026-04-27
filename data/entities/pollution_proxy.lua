@@ -10,7 +10,7 @@ data:extend
     type = "tool",
     icon = steam.icon,
     icon_size = steam.icon_size,
-    flags = {"hidden"},
+    hidden = true,
     stack_size = 10,
     durability = 1
   }

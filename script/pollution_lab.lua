@@ -43,7 +43,7 @@ local update_lab = function(entity)
   if pollution_to_take < pollution_absorb_min then return end
 
   pollution_to_take  = entity.insert({name = names.pollution_proxy, count = pollution_to_take})
-  game.pollution_statistics.on_flow(entity.name, -pollution_to_take)
+  game.get_pollution_statistics(surface).on_flow(entity.name, -pollution_to_take)
   surface.pollute(position, -pollution_to_take)
 
 end

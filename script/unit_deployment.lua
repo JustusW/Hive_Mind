@@ -112,6 +112,16 @@ local get_required_pollution = function(name)
   return required_pollution[name] * pollution_cost_multiplier
 end
 
+local get_unit_pollution_cost = function(prototype)
+  if prototype.pollution_to_join_attack then
+    return prototype.pollution_to_join_attack
+  end
+  if prototype.absorptions_to_join_attack and prototype.absorptions_to_join_attack.pollution then
+    return prototype.absorptions_to_join_attack.pollution
+  end
+  return 0
+end
+
 local min = math.min
 
 local progress_color = {r = 0.8, g = 0.8}
@@ -171,7 +181,7 @@ local check_spawner = function(spawner_data)
     entity.crafting_progress = progress
 
     surface.pollute(position, -pollution_to_take)
-    game.pollution_statistics.on_flow(entity.name, -pollution_to_take)
+    game.get_pollution_statistics(surface).on_flow(entity.name, -pollution_to_take)
     force.item_production_statistics.on_flow(shared.pollution_proxy, -pollution_to_take)
   end
 
@@ -271,7 +281,7 @@ local check_ghost = function(ghost_data)
     for k, unit in pairs (surface.find_units{area = entity.bounding_box, force = entity.force, condition = "same"}) do
       if unit.valid then
         local prototype = get_prototype(unit.name)
-        local pollution = prototype.pollution_to_join_attack * pollution_cost_multiplier
+        local pollution = get_unit_pollution_cost(prototype) * pollution_cost_multiplier
         if unit.destroy({raise_destroy = true}) then
           ghost_data.required_pollution = ghost_data.required_pollution - pollution
           if ghost_data.required_pollution <= 0 then break end
@@ -301,7 +311,7 @@ local check_ghost = function(ghost_data)
       if is_idle(unit_number) then
         --entity.surface.create_entity{name = "flying-text", position = unit.position, text = "IDLE"}
         unit.set_command(command)
-        local pollution = unit.prototype.pollution_to_join_attack * pollution_cost_multiplier
+        local pollution = get_unit_pollution_cost(unit.prototype) * pollution_cost_multiplier
         needed_pollution = needed_pollution - pollution
         data.not_idle_units[unit_number] = {tick = game.tick, ghost_data = ghost_data}
         if needed_pollution <= 0 then break end

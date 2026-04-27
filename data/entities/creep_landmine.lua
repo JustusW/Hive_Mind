@@ -21,7 +21,7 @@ local landmine =
   collision_box = nil,
   selection_box = nil,
   selectable_in_game = false,
-  collision_mask = {},
+  collision_mask = util.mask({}),
   timeout = 0,
   --dying_explosion = "explosion-hit",
   picture_safe = util.empty_sprite(),
@@ -46,7 +46,7 @@ local landmine =
             type = "area",
             radius = names.creep_radius + 1,
             force = "enemy",
-            collision_mask = {"player-layer"},
+            collision_mask = util.mask({"player-layer"}),
             action_delivery =
             {
               type = "instant",

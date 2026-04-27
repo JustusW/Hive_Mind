@@ -71,6 +71,7 @@ local creep_spread_update_rate = 64
 local get_area = util.area
 local distance = util.distance
 local insert = table.insert
+local ground_tile_collision_layer = "ground_tile"
 
 local register_to_set_tiles = function(surface, tile)
 
@@ -119,7 +120,7 @@ spread_creep = function(unit_number, spawner_data)
     end
 
     radius = math.min(radius + 1, max_radius)
-    tiles = shuffle_table(surface.find_tiles_filtered{position = position, radius = radius, collision_mask = "ground-tile"})
+    tiles = shuffle_table(surface.find_tiles_filtered{position = position, radius = radius, collision_mask = ground_tile_collision_layer})
     spawner_data.tiles = tiles
     spawner_data.radius = radius
 

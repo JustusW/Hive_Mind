@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime": {
+    "version": "Lua 5.2"
+  },
+  "workspace": {
+    "checkThirdParty": false,
+    "ignoreDir": [
+      ".git",
+      ".vscode"
+    ]
+  },
+  "diagnostics": {
+    "globals": [
+      "commands",
+      "data",
+      "defines",
+      "game",
+      "global",
+      "helpers",
+      "log",
+      "mods",
+      "prototypes",
+      "remote",
+      "rendering",
+      "script",
+      "serpent",
+      "settings",
+      "storage"
+    ]
+  },
+  "format": {
+    "enable": false
+  }
+}

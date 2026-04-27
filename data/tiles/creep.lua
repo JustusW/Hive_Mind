@@ -10,7 +10,7 @@ creep.collision_mask = util.creep_collision_mask()
 creep.tint = creep_color
 creep.map_color = creep_color
 --creep.allowed_neighbors = {}
-creep.pollution_absorption_per_second = 0
+creep.absorptions_per_second = {}
 creep.walking_sound = {}
 for k = 1, 8 do
   table.insert(creep.walking_sound, {filename = util.path("data/tiles/creep-0"..k..".ogg")})
@@ -32,16 +32,16 @@ data:extend
 }
 
 for k, v in pairs (data.raw.cliff) do
-  v.collision_mask = {"player-layer", "train-layer", "object-layer", "not-colliding-with-itself"}
+  v.collision_mask = util.mask({"player-layer", "train-layer", "object-layer", "not-colliding-with-itself"})
 end
 
 for k, v in pairs (data.raw.tree) do
-  v.collision_mask = {"player-layer", "train-layer", "object-layer"}
+  v.collision_mask = util.mask({"player-layer", "train-layer", "object-layer"})
 end
 
 for k, v in pairs (data.raw["simple-entity"]) do
   if v.count_as_rock_for_filtered_deconstruction then
-    v.collision_mask = {"player-layer", "train-layer", "object-layer"}
+    v.collision_mask = util.mask({"player-layer", "train-layer", "object-layer"})
   end
 end
 
@@ -53,7 +53,9 @@ end
 
 for k, v in pairs (data.raw.item) do
   if v.place_as_tile then
-    table.insert(v.place_as_tile.condition, "floor-layer")
+    v.place_as_tile.condition = v.place_as_tile.condition or util.mask({})
+    v.place_as_tile.condition.layers = v.place_as_tile.condition.layers or {}
+    v.place_as_tile.condition.layers.floor = true
   end
 end
 

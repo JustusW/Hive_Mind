@@ -1,0 +1,66 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Factorio: link mod",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\link-mod.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Factorio: start",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\start-factorio.ps1",
+        "-LinkFirst"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Factorio: tail log",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\tail-log.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Factorio: check load",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\check-load.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Factorio: check runtime",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\check-runtime.ps1"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

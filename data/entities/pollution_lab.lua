@@ -24,10 +24,11 @@ local spawner_graphics = util.copy(data.raw["unit-spawner"]["biter-spawner"])
 util.recursive_hack_make_hr(spawner_graphics)
 util.recursive_hack_scale(spawner_graphics, 6/5)
 util.recursive_hack_tint(spawner_graphics, tint)
+local spawner_animations = (spawner_graphics.graphics_set and spawner_graphics.graphics_set.animations) or spawner_graphics.animations
 
 local on_animation = {layers = {}}
 
-for k, layer in pairs (spawner_graphics.animations[2].layers) do
+for k, layer in pairs(spawner_animations[2].layers) do
   if layer.frame_count == 8 then
     layer.repeat_count = 1
   end
@@ -36,10 +37,10 @@ end
 
 for k, layer in pairs (graphics.on_animation.layers or graphics.on_animation) do
   if layer.frame_count == 33 then
-    layer.frame_count = 16
+    layer.frame_count = 12
   end
   if layer.repeat_count == 33 then
-    layer.repeat_count = 16
+    layer.repeat_count = 12
   end
   util.shift_layer(layer, {0, -2.2})
   table.insert(on_animation.layers, layer)
@@ -50,7 +51,7 @@ end
 
 local off_animation = {layers = {}}
 
-for k, layer in pairs (spawner_graphics.animations[2].layers) do
+for k, layer in pairs(spawner_animations[2].layers) do
   local new = util.copy(layer)
   new.frame_count = 1
   new.run_mode = nil
@@ -122,7 +123,7 @@ local item =
   type = "item",
   name = name,
   localised_name = {name},
-  localised_description = {"requires-pollution", names.required_pollution[name] * names.pollution_cost_multiplier},
+  localised_description = {"requires-pollution", tostring(names.required_pollution[name] * names.pollution_cost_multiplier)},
   icons = lab.icons,
   flags = {},
   subgroup = subgroup.name,

@@ -5,13 +5,24 @@ local util = require("__Hive_Mind__/data/tf_util/tf_util")
 
 local default_unlocked = shared.default_unlocked
 
+local get_pollution_cost = function(prototype)
+  if prototype.pollution_to_join_attack then
+    return prototype.pollution_to_join_attack
+  end
+  if prototype.absorptions_to_join_attack and prototype.absorptions_to_join_attack.pollution then
+    return prototype.absorptions_to_join_attack.pollution
+  end
+  return 0
+end
+
 local make_biter_item = function(prototype, subgroup)
+  local pollution_cost = get_pollution_cost(prototype)
   local item =
   {
     type = "item",
     name = prototype.name,
     localised_name = prototype.localised_name,
-    localised_description = {"requires-pollution", prototype.pollution_to_join_attack * shared.pollution_cost_multiplier},
+    localised_description = {"requires-pollution", tostring(pollution_cost * shared.pollution_cost_multiplier)},
     icon = prototype.icon,
     icon_size = prototype.icon_size,
     stack_size = 1,
@@ -23,6 +34,7 @@ local make_biter_item = function(prototype, subgroup)
 end
 
 local make_biter_recipe = function(prototype, category)
+  local pollution_cost = get_pollution_cost(prototype)
   local recipe =
   {
     type = "recipe",
@@ -30,8 +42,8 @@ local make_biter_recipe = function(prototype, category)
     localised_name = prototype.localised_name,
     enabled = false,
     ingredients = {},
-    energy_required = prototype.pollution_to_join_attack * shared.pollution_cost_multiplier,
-    result = prototype.name,
+    energy_required = pollution_cost * shared.pollution_cost_multiplier,
+    results = {{type = "item", name = prototype.name, amount = 1}},
     category = category
   }
   data:extend{recipe}
@@ -84,7 +96,7 @@ local make_worm_recipe = function(prototype, category, energy)
     enabled = false,
     ingredients = {},
     energy_required = math.huge,
-    result = prototype.name,
+    results = {{type = "item", name = prototype.name, amount = 1}},
     category = worm_category.name
   }
   data:extend{recipe}
@@ -106,7 +118,7 @@ local make_worm_item = function(prototype)
     type = "item",
     name = prototype.name,
     localised_name = prototype.localised_name,
-    localised_description = {"requires-pollution", shared.required_pollution[prototype.name] * shared.pollution_cost_multiplier},
+    localised_description = {"requires-pollution", tostring(shared.required_pollution[prototype.name] * shared.pollution_cost_multiplier)},
     icon = prototype.icon,
     icon_size = prototype.icon_size,
     stack_size = 1,
@@ -118,31 +130,33 @@ local make_worm_item = function(prototype)
 end
 
 local make_biter = function(biter)
+  local pollution_cost = get_pollution_cost(biter)
   biter.collision_mask = util.ground_unit_collision_mask()
   biter.radar_range = biter.radar_range or 2
   make_biter_item(biter, names.deployers.biter_deployer)
   make_biter_recipe(biter, names.deployers.biter_deployer)
-  make_unlock_technology(biter, biter.pollution_to_join_attack * shared.pollution_cost_multiplier * 200)
+  make_unlock_technology(biter, pollution_cost * shared.pollution_cost_multiplier * 200)
   biter.ai_settings = biter.ai_settings or {}
   biter.ai_settings.destroy_when_commands_fail = false
   biter.friendly_map_color = {b = 1, g = 1}
   biter.affected_by_tiles = biter.affected_by_tiles or true
-  biter.localised_description = {"requires-pollution", biter.pollution_to_join_attack * shared.pollution_cost_multiplier}
+  biter.localised_description = {"requires-pollution", tostring(pollution_cost * shared.pollution_cost_multiplier)}
   --biter.corpse = nil
   biter.dying_explosion = nil
 end
 
 local make_spitter = function(biter)
+  local pollution_cost = get_pollution_cost(biter)
   biter.collision_mask = util.ground_unit_collision_mask()
   biter.radar_range = biter.radar_range or 2
   make_biter_item(biter, names.deployers.spitter_deployer)
   make_biter_recipe(biter, names.deployers.spitter_deployer)
-  make_unlock_technology(biter, biter.pollution_to_join_attack * shared.pollution_cost_multiplier * 200)
+  make_unlock_technology(biter, pollution_cost * shared.pollution_cost_multiplier * 200)
   biter.ai_settings = biter.ai_settings or {}
   biter.ai_settings.destroy_when_commands_fail = false
   biter.friendly_map_color = {b = 1, g = 1}
   biter.affected_by_tiles = biter.affected_by_tiles or true
-  biter.localised_description = {"requires-pollution", biter.pollution_to_join_attack * shared.pollution_cost_multiplier}
+  biter.localised_description = {"requires-pollution", tostring(pollution_cost * shared.pollution_cost_multiplier)}
   --biter.corpse = nil
   biter.dying_explosion = nil
 end
@@ -157,8 +171,8 @@ local make_worm = function(turret)
   table.insert(turret.flags, "player-creation")
   turret.create_ghost_on_death = false
   turret.friendly_map_color = {b = 1, g = 0.5}
-  turret.localised_description = {"requires-pollution", shared.required_pollution[turret.name] * shared.pollution_cost_multiplier}
-  turret.collision_mask = {"water-tile", "player-layer", "train-layer"}
+  turret.localised_description = {"requires-pollution", tostring(shared.required_pollution[turret.name] * shared.pollution_cost_multiplier)}
+  turret.collision_mask = util.mask({"water-tile", "player-layer", "train-layer"})
   if turret.attack_parameters.ammo_type.category == "biological" then
     turret.attack_parameters.ammo_type.category = worm_ammo_category
   end
@@ -228,7 +242,7 @@ for name, turret in pairs (turrets) do
 end
 
 for name, spawner in pairs (data.raw["unit-spawner"]) do
-  spawner.collision_mask = {"water-tile", "player-layer", "train-layer"}
+  spawner.collision_mask = util.mask({"water-tile", "player-layer", "train-layer"})
 end
 
 for k, corpse in pairs (data.raw.corpse) do
