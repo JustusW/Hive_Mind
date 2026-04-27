@@ -9,6 +9,8 @@ local script_data =
   force_balance = false
 }
 
+local persistent = storage or global
+
 local convert_nest
 
 local be_friends = function(force_1, force_2)
@@ -678,7 +680,7 @@ local lib = {}
 lib.get_events = function() return events end
 
 lib.on_init = function()
-  global.hive_mind = global.hive_mind or script_data
+  persistent.hive_mind = persistent.hive_mind or script_data
   for k, player in pairs (game.players) do
     gui_init(player)
   end
@@ -689,7 +691,7 @@ lib.on_init = function()
 end
 
 lib.on_load = function()
-  script_data = global.hive_mind or script_data
+  script_data = persistent.hive_mind or script_data
   register_wave_defense()
   register_pvp()
 end

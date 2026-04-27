@@ -9,10 +9,27 @@ local data =
   enemy_attack_pollution_consumption_modifier = 1,
   can_spawn = false,
   pop_count = {},
-  max_pop_count = 1000
+  max_pop_count = 1000,
+  generated_events = {}
 }
 
 local unit_spawned_event
+
+local persistent = storage or global
+
+local get_entity_prototypes = function()
+  if prototypes and prototypes.entity then
+    return prototypes.entity
+  end
+  return game.entity_prototypes
+end
+
+local get_technology_prototypes = function()
+  if prototypes and prototypes.technology then
+    return prototypes.technology
+  end
+  return game.technology_prototypes
+end
 
 local get_destroy_factor = function()
   return data.destroy_factor
@@ -83,7 +100,7 @@ local prototype_cache = {}
 local get_prototype = function(name)
   local prototype = prototype_cache[name]
   if prototype then return prototype end
-  prototype = game.entity_prototypes[name]
+  prototype = get_entity_prototypes()[name]
   prototype_cache[name] = prototype
   return prototype
 end
@@ -231,8 +248,9 @@ local needs_technology
 local get_needs_technology = function(name)
   if needs_technology then return needs_technology[name] end
   needs_technology = {}
+  local technology_prototypes = get_technology_prototypes()
   for name, entity in pairs(required_pollution) do
-    if game.technology_prototypes["hivemind-unlock-"..name] then
+    if technology_prototypes["hivemind-unlock-"..name] then
       needs_technology[name] = true
     end
   end
@@ -478,7 +496,7 @@ local unit_list
 local get_units = function()
   if unit_list then return unit_list end
   unit_list = {}
-  for name, prototype in pairs (game.entity_prototypes) do
+  for name, prototype in pairs (get_entity_prototypes()) do
     if prototype.type == "unit" then
       table.insert(unit_list, name)
     end
@@ -589,8 +607,23 @@ commands.add_command("popcap", "Set the popcap for hive mind biters", function(c
 end)
 
 local setup_spawn_event = function()
-  local control_events = remote.call("unit_control", "get_events")
-  unit_spawned_event = control_events.on_unit_spawned
+  data.generated_events = data.generated_events or {}
+  if data.generated_events.on_unit_spawned then
+    unit_spawned_event = data.generated_events.on_unit_spawned
+    return
+  end
+  unit_spawned_event = script.generate_event_name()
+  data.generated_events.on_unit_spawned = unit_spawned_event
+end
+
+local register_remote_interface = function()
+  if remote.interfaces["hive_mind_unit_deployment"] then return end
+  remote.add_interface("hive_mind_unit_deployment",
+  {
+    get_events = function()
+      return data.generated_events
+    end
+  })
 end
 
 local unit_deployment = {}
@@ -598,18 +631,22 @@ local unit_deployment = {}
 unit_deployment.get_events = function() return events end
 
 unit_deployment.on_init = function()
-  global.unit_deployment = global.unit_deployment or data
+  persistent.unit_deployment = persistent.unit_deployment or data
+  data = persistent.unit_deployment
   check_update_map_settings()
   check_update_pop_cap()
   setup_spawn_event()
+  register_remote_interface()
 end
 
 unit_deployment.on_load = function()
-  data = global.unit_deployment
+  data = persistent.unit_deployment or data
   setup_spawn_event()
 end
 
 unit_deployment.on_configuration_changed = function()
+  setup_spawn_event()
+  register_remote_interface()
   check_update_map_settings()
   check_update_pop_cap()
   rendering.clear("Hive_Mind")

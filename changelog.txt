@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.5.0
+Date: 2026-04-27
+  Changes:
+    - Ported to Factorio 2.0 (base game only, no Space Age requirement).
+    - Removed Unit_Control dependency and replaced internal unit-spawn event wiring.
+    - Migrated runtime persistent state handling to 2.0 storage table.
+---------------------------------------------------------------------------------------------------
 Version: 0.4.3
 Date: 2021-07-25
   Changes:

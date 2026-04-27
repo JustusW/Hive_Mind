@@ -6,6 +6,8 @@ local script_data =
   labs = {}
 }
 
+local persistent = storage or global
+
 local lab_update_rate = 89
 
 local pollution_cache = {}
@@ -102,11 +104,11 @@ local lib = {}
 lib.get_events = function() return events end
 
 lib.on_init = function()
-  global.pollution_lab = global.pollution_lab or script_data
+  persistent.pollution_lab = persistent.pollution_lab or script_data
 end
 
 lib.on_load = function()
-  script_data = global.pollution_lab or script_data
+  script_data = persistent.pollution_lab or script_data
 end
 
 lib.on_configuration_changed = function()

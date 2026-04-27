@@ -8,6 +8,8 @@ local script_data =
   tiles_to_set = {}
 }
 
+local persistent = storage or global
+
 local names = require("shared")
 
 
@@ -317,7 +319,7 @@ local lib = {}
 lib.get_events = function() return events end
 
 lib.on_init = function()
-  global.creep = global.creep or script_data
+  persistent.creep = persistent.creep or script_data
   for k, surface in pairs (game.surfaces) do
     for k, v in pairs (surface.find_entities_filtered{name = creep_spread_list}) do
       on_built_entity({entity = v})
@@ -326,12 +328,12 @@ lib.on_init = function()
 end
 
 lib.on_load = function()
-  script_data = global.creep or script_data
+  script_data = persistent.creep or script_data
 end
 
 lib.on_configuration_changed = function()
-  if global.creep then return end
-  global.creep = script_data
+  if persistent.creep then return end
+  persistent.creep = script_data
   for k, surface in pairs (game.surfaces) do
     for k, v in pairs (surface.find_entities_filtered{name = creep_spread_list}) do
       on_built_entity({entity = v})
