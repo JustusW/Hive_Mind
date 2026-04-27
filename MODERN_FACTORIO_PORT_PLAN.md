@@ -5,11 +5,12 @@
 - Keep scope to **base game only** (no Space Age content requirements).
 - Preserve the core gameplay loop: join hive force, convert nests, spend pollution, spread creep, deploy units, and research through hive buildings.
 
-## Current progress (2026-04-27)
+## Current progress (2026-04-28)
 - `info.json` now targets **Factorio 2.0** and depends only on `base >= 2.0.0`.
 - `changelog.txt` already includes a `0.5.0` entry for the 2.0 port branch.
 - The old `Unit_Control` dependency is gone; the remaining internal assumptions are now owned directly inside this repo.
 - The development environment now uses an isolated sibling profile outside the repo instead of the shared `%APPDATA%\Factorio\mods` folder.
+- In-game hive testing is now viable again: converted deployers can spawn units after save/load, the hive HUD shows local pollution, and hive build selection is available from a dedicated left-side palette.
 - Headless validation currently passes:
   - `powershell -ExecutionPolicy Bypass -File .\tools\check-load.ps1`
   - `powershell -ExecutionPolicy Bypass -File .\tools\check-runtime.ps1 -UntilTick 3600`
@@ -25,7 +26,10 @@
   - updated pollution statistics access to `game.get_pollution_statistics(surface)`,
   - updated force evolution accessors to `get_evolution_factor()` / `set_evolution_factor(...)`,
   - fixed hive-force recipe reset to write explicit booleans,
-  - migrated creep spreading off the old `ground-tile` runtime collision-layer name.
+  - migrated creep spreading off the old `ground-tile` runtime collision-layer name,
+  - restored deployer unit spawning after save/load by rebuilding deployer registration,
+  - replaced several removed 1.1 runtime APIs in the hive join/leave and ghost-construction paths,
+  - added an in-game pollution HUD and build palette to make the hive economy testable again.
 - Tooling/workflow:
   - added isolated dev scripts under `tools/`,
   - made headless checks auto-link the mod into the isolated mods folder,
@@ -35,6 +39,7 @@
 ## Remaining high-risk areas
 - Join/leave hive quickbar handling in `script/hive_mind.lua`.
 - Player controller and character handoff flows in `script/hive_mind.lua`.
+- Ghost construction and sacrifice flow in `script/unit_deployment.lua`.
 - Save upgrade behavior for existing 1.1 saves.
 - Multiplayer/PvP and `wave_defense` integration paths.
 - Late-game performance of creep spreading and deployment scans.

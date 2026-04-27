@@ -9,14 +9,16 @@ This branch is the current **Factorio 2.0 porting branch** for the mod, targetin
 What is already working on this branch:
 - data stage loads cleanly on Factorio 2.0,
 - runtime initializes cleanly,
-- the mod passes a headless smoke test through 3600 ticks.
+- the mod passes a headless smoke test through 3600 ticks,
+- joining the hive, opening converted nests, and deployer-based unit spawning are back in working shape,
+- the hive UI now exposes local pollution and a dedicated build palette in hive mode.
 
 What still needs real tester feedback:
 - joining and leaving the hive,
 - quickbar replacement and restoration,
 - custom biter character behavior,
 - creep spread and shrink behavior during normal play,
-- pollution lab and deployer progression,
+- pollution lab progression and sacrifice-based ghost construction,
 - old save migration,
 - multiplayer and optional `pvp` / `wave_defense` integration paths.
 
@@ -46,14 +48,21 @@ powershell -ExecutionPolicy Bypass -File .\tools\start-factorio.ps1 -LinkFirst
 
 That launches Factorio with a clean mod profile outside your normal shared mods folder.
 
+To restart Factorio quickly after making changes:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\restart-factorio.ps1 -LinkFirst
+```
+
 ## What to test first
 
 1. Start a new freeplay map.
 2. Use the Hive Mind UI button to join the hive.
 3. Confirm you become a biter character and can interact with hive structures.
 4. Convert a nest and verify nearby hive entities swap over correctly.
-5. Build or use deployers, pollution lab, pollution drill, and creep structures.
-6. Leave the hive and confirm your old force, character, and quickbar return correctly.
+5. Use the left-side `Hive Builds` palette to place hive ghosts and watch whether nearby hive units begin paying their construction cost.
+6. Build or use deployers, pollution lab, pollution drill, and creep structures.
+7. Leave the hive and confirm your old force, character, and quickbar return correctly.
 
 ## Singleplayer note
 
@@ -67,6 +76,7 @@ This mode is intended to work in singleplayer, but it is not a traditional separ
 
 - quickbar handling may still have edge cases on join/leave,
 - player character/controller transitions still need broader play coverage,
+- ghost placement and sacrifice-based construction still need broader play coverage,
 - older 1.1 saves have not been broadly migration-tested yet,
 - optional integrations may still need follow-up fixes.
 
@@ -90,5 +100,6 @@ The most useful tester reports include:
 ## Developer notes
 
 If you want the deeper porting and workflow docs, see:
+- [INTENDED_BEHAVIOR.md](INTENDED_BEHAVIOR.md)
 - [DEVELOPMENT.md](DEVELOPMENT.md)
 - [MODERN_FACTORIO_PORT_PLAN.md](MODERN_FACTORIO_PORT_PLAN.md)

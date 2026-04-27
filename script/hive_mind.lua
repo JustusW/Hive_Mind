@@ -6,7 +6,8 @@ local script_data =
   player_lights = {},
   previous_life_data = {},
   player_spawns = {},
-  force_balance = false
+  force_balance = false,
+  refresh_gui = false
 }
 
 local persistent = storage or global
@@ -72,6 +73,27 @@ local is_hivemind_force = function(force)
   return force.name == "hivemind"
 end
 
+local destroy_render_object = function(object)
+  if not object then return end
+  pcall(function()
+    if object.valid then
+      object.destroy()
+    end
+  end)
+end
+
+local get_default_return_force = function()
+  if game.forces.player and game.forces.player.valid then
+    return game.forces.player
+  end
+
+  for _, force in pairs(game.forces) do
+    if force.valid and (not is_hivemind_force(force)) and force.name ~= "enemy" and force.name ~= "spectator" then
+      return force
+    end
+  end
+end
+
 local deploy_map =
 {
   ["biter-spawner"] = names.deployers.biter_deployer,
@@ -83,7 +105,7 @@ local light_color = {r = 1, b = 0, g = 0.6}
 local add_biter_light = function(player)
   if not player.character then return end
   local index = script_data.player_lights[player.index]
-  if index and rendering.is_valid(index) then return end
+  destroy_render_object(index)
   script_data.player_lights[player.index] = rendering.draw_light
   {
     sprite = "utility/light_medium",
@@ -232,15 +254,161 @@ local leave_hive_button =
   style = mod_gui.button_style
 }
 
+local pollution_label_name = "hive_mind_local_pollution_label"
+local build_palette_name = "hive_mind_build_palette"
+local build_table_name = "hive_mind_build_table"
+local build_button_prefix = "hive-build-button-"
+local selected_build_label_name = "hive_mind_selected_build_label"
+
 local join_hive
 local leave_hive
+local gui_init
 
 local actions =
 {
   [join_hive_button.name] = function(event) join_hive(game.get_player(event.player_index)) end,
   [leave_hive_button.name] = function(event) leave_hive(game.get_player(event.player_index)) end,
 }
-local gui_init = function(player)
+
+local format_pollution_amount = function(amount)
+  return string.format("%.1f", amount or 0)
+end
+
+local get_opened_entity = function(player)
+  local opened = player.opened
+  if not opened then return end
+  local ok, object_name = pcall(function() return opened.object_name end)
+  if not ok or object_name ~= "LuaEntity" then return end
+  if opened.valid then
+    return opened
+  end
+end
+
+local get_local_pollution_caption = function(player)
+  local surface = player.surface
+  local position = player.position
+  local opened = get_opened_entity(player)
+  if opened and opened.surface == surface and names.needs_proxy_type[opened.type] then
+    position = opened.position
+    return {"local-pollution-selected", opened.localised_name, format_pollution_amount(surface.get_pollution(position))}
+  end
+  return {"local-pollution-here", format_pollution_amount(surface.get_pollution(position))}
+end
+
+local update_local_pollution_label = function(player)
+  local gui = player.gui.left
+  local label = gui[pollution_label_name]
+  if not label then
+    label = gui.add{name = pollution_label_name, type = "label"}
+  end
+
+  if not is_hivemind_force(player.force) then
+    label.visible = false
+    return
+  end
+
+  label.caption = get_local_pollution_caption(player)
+  label.visible = true
+end
+
+local update_all_local_pollution_labels = function()
+  for _, player in pairs(game.connected_players) do
+    update_local_pollution_label(player)
+  end
+end
+
+local refresh_all_player_guis = function()
+  for _, player in pairs(game.players) do
+    gui_init(player)
+  end
+end
+
+local update_selected_build_label = function(player, entity_name)
+  local gui = player.gui.left
+  local label = gui[selected_build_label_name]
+  if not label then
+    label = gui.add{name = selected_build_label_name, type = "label"}
+  end
+
+  if not is_hivemind_force(player.force) then
+    label.visible = false
+    return
+  end
+
+  if entity_name then
+    label.caption = {"selected-build", {"entity-name." .. entity_name}}
+  else
+    label.caption = {"selected-build-none"}
+  end
+  label.visible = true
+end
+
+local clear_hive_cursor = function(player)
+  player.clear_cursor()
+  player.cursor_ghost = nil
+  if player.clear_local_flying_texts then
+    player.clear_local_flying_texts()
+  end
+  update_selected_build_label(player, nil)
+end
+
+local set_hive_build_ghost = function(player, entity_name, quality_name)
+  clear_hive_cursor(player)
+  local pipetted = false
+  if player.pipette then
+    pipetted = player.pipette(entity_name, quality_name, true)
+  end
+  if not pipetted then
+    local ghost = {name = entity_name}
+    if quality_name then
+      ghost.quality = quality_name
+    end
+    player.cursor_ghost = ghost
+  end
+  update_selected_build_label(player, entity_name)
+end
+
+local destroy_build_palette = function(player)
+  local frame = player.gui.left[build_palette_name]
+  if frame then
+    frame.destroy()
+  end
+end
+
+local ensure_build_palette = function(player)
+  destroy_build_palette(player)
+  if not is_hivemind_force(player.force) then
+    return
+  end
+
+  local frame = player.gui.left.add
+  {
+    type = "frame",
+    name = build_palette_name,
+    direction = "vertical",
+    caption = {"build-palette"}
+  }
+
+  local build_table = frame.add
+  {
+    type = "table",
+    name = build_table_name,
+    column_count = 4
+  }
+
+  for name, pollution in pairs(names.required_pollution) do
+    build_table.add
+    {
+      type = "sprite-button",
+      name = build_button_prefix .. name,
+      sprite = "item/" .. name,
+      style = "slot_button",
+      tooltip = {"", {"item-name." .. name}, "  ", {"requires-pollution", tostring(pollution)}}
+    }
+  end
+end
+
+gui_init = function(player)
   local gui = mod_gui.get_button_flow(player)
 
   for name, action in pairs (actions) do
@@ -255,6 +423,9 @@ local gui_init = function(player)
   end
 
   gui.add(element)
+  ensure_build_palette(player)
+  update_local_pollution_label(player)
+  update_selected_build_label(player, nil)
 end
 
 
@@ -329,6 +500,7 @@ join_hive = function(player)
     character_name = player.character and player.character.name,
     controller = player.controller_type,
     position = player.position,
+    surface_index = player.surface.index,
     quickbar = quickbar,
     tag = player.tag,
     color = player.color,
@@ -396,12 +568,37 @@ end
 leave_hive = function(player)
 
   local previous_life_data = script_data.previous_life_data[player.index]
+  if not previous_life_data then
+    local fallback_force = get_default_return_force()
+    if not fallback_force then
+      player.print("Can't leave the hive: no return force is available.")
+      return
+    end
+
+    previous_life_data =
+    {
+      force = fallback_force,
+      position = player.position,
+      surface_index = player.surface.index,
+      quickbar = {},
+      tag = "",
+      color = {r = 255, g = 255, b = 255},
+      chat_color = {r = 255, g = 255, b = 255}
+    }
+    script_data.previous_life_data[player.index] = previous_life_data
+  end
+
   local force = previous_life_data.force
+  if not (force and force.valid) then
+    force = get_default_return_force()
+    previous_life_data.force = force
+  end
   local character = previous_life_data.character
   local controller = previous_life_data.controller
-  local character_name = previous_life_data.character_name
+  local character_name = previous_life_data.character_name or "character"
   local color = previous_life_data.color or {r = 255, g = 255, b = 255}
   local chat_color = previous_life_data.chat_color or color
+  local surface = game.surfaces[previous_life_data.surface_index] or player.surface
 
   local biter = player.character
   player.character = nil
@@ -410,32 +607,45 @@ leave_hive = function(player)
   player.force = force
   player.color = color
   player.chat_color = chat_color
-  local surface = player.surface
   if character then
     --he used to have a character
     if character.valid then
       player.character = character
     else
       --however his old character died or something...
+      local restore_position = previous_life_data.position or force.get_spawn_position(surface)
       player.character = surface.create_entity
       {
         name = character_name,
-        position = surface.find_non_colliding_position(character_name, force.get_spawn_position(surface), 0, 1),
+        position = surface.find_non_colliding_position(character_name, restore_position, 32, 1) or restore_position,
         force = force
       }
     end
   else
-    player.teleport(previous_life_data.position)
+    player.teleport(previous_life_data.position, surface)
   end
+
+  if not player.character and force and force.valid then
+    local spawn_position = previous_life_data.position or force.get_spawn_position(surface)
+    local character_position = surface.find_non_colliding_position(character_name, spawn_position, 32, 1) or spawn_position
+    player.character = surface.create_entity
+    {
+      name = character_name,
+      position = character_position,
+      force = force
+    }
+  end
+
   gui_init(player)
 
   local set_quick_bar_slot = player.set_quick_bar_slot
-  local old_quickbar = previous_life_data.quickbar
+  local old_quickbar = previous_life_data.quickbar or {}
   for k = 1, 100 do
     set_quick_bar_slot(k, old_quickbar[k])
   end
 
   player.tag = previous_life_data.tag or ""
+  script_data.previous_life_data[player.index] = nil
 
   game.print{"left-hive", player.name}
   check_hivemind_disband()
@@ -451,7 +661,13 @@ local on_player_respawned = function(event)
 end
 
 local on_tick = function(event)
-
+  if script_data.refresh_gui then
+    refresh_all_player_guis()
+    script_data.refresh_gui = false
+  end
+  if event.tick % 30 == 0 then
+    update_all_local_pollution_labels()
+  end
 end
 
 local pollution_values =
@@ -486,15 +702,28 @@ local on_player_mined_entity = function(event)
   end
   if total_pollution == 0 then return end
 
-  surface.create_entity{name = "flying-text", position = position, text = "Pollution +"..total_pollution, color = {r = 1, g = 0.2, b = 0.2}}
+  player.create_local_flying_text
+  {
+    text = "Pollution +"..total_pollution,
+    position = position,
+    color = {r = 1, g = 0.2, b = 0.2},
+    time_to_live = nil,
+    speed = nil
+  }
   surface.pollute(position, total_pollution)
-
 end
 
 local on_gui_click = function(event)
   local gui = event.element
   if not (gui and gui.valid) then return end
   local name = gui.name
+  if name and name:find(build_button_prefix, 1, true) == 1 then
+    local player = game.get_player(event.player_index)
+    if not (player and player.valid and is_hivemind_force(player.force)) then return end
+    local entity_name = name:sub(#build_button_prefix + 1)
+    set_hive_build_ghost(player, entity_name)
+    return
+  end
   if name and actions[name] then return actions[name](event) end
 end
 
@@ -551,16 +780,40 @@ local allowed_types =
 
 }
 
+local allowed_cursor_items = {}
+for name, _ in pairs(names.required_pollution) do
+  allowed_cursor_items[name] = true
+end
+
+local set_hive_cursor_ghost = function(player, stack)
+  local quality = stack.quality
+  local quality_name
+  if quality and quality.valid then
+    quality_name = quality.name
+  end
+  set_hive_build_ghost(player, stack.name, quality_name)
+end
+
 local on_player_cursor_stack_changed = function(event)
   local player = game.get_player(event.player_index)
   if not (player and player.valid) then return end
   if not is_hivemind_force(player.force) then return end
   local stack = player.cursor_stack
   if not stack.valid_for_read then return end
+  if allowed_cursor_items[stack.name] then
+    set_hive_cursor_ghost(player, stack)
+    return
+  end
   if allowed_types[stack.type] then return end
 
   player.print({"biters-cant-hold", stack.prototype.localised_name})
-  player.surface.spill_item_stack(player.position, stack, false, nil, false)
+  player.surface.spill_item_stack
+  {
+    position = player.position,
+    stack = stack,
+    enable_looted = false,
+    allow_belts = false
+  }
   stack.clear()
 end
 
@@ -609,8 +862,9 @@ local allowed_gui_types =
 }
 
 local on_gui_opened = function(event)
-  if event.gui_type ~= defines.gui_type.entity then return end
   local player = game.get_player(event.player_index)
+  update_local_pollution_label(player)
+  if event.gui_type ~= defines.gui_type.entity then return end
   if not is_hivemind_force(player.force) then return end
   local entity = event.entity
   if not (entity and entity.valid) then return end
@@ -638,7 +892,7 @@ end
 local events =
 {
   [defines.events.on_player_respawned] = on_player_respawned,
-  --[defines.events.on_tick] = on_tick,
+  [defines.events.on_tick] = on_tick,
   [defines.events.on_player_mined_entity] = on_player_mined_entity,
   [defines.events.on_player_joined_game] = on_player_joined_game,
   [defines.events.on_player_created] = on_player_created,
@@ -692,6 +946,7 @@ end
 
 lib.on_load = function()
   script_data = persistent.hive_mind or script_data
+  script_data.refresh_gui = true
   register_wave_defense()
   register_pvp()
 end
@@ -705,6 +960,7 @@ lib.on_configuration_changed = function()
     script_data.hive_mind_forces = nil
   end
   script_data.player_spawns = script_data.player_spawns or {}
+  script_data.refresh_gui = true
   set_map_settings()
 end
 
