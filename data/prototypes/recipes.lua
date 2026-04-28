@@ -7,7 +7,7 @@ data:extend(
     name = shared.recipes.hive,
     localised_name = {"recipe-name." .. shared.recipes.hive},
     enabled = false,
-    energy_required = 0.1,
+    energy_required = 1,
     results =
     {
       {type = "item", name = shared.items.hive, amount = 1}
@@ -18,7 +18,7 @@ data:extend(
     name = shared.recipes.hive_node,
     localised_name = {"recipe-name." .. shared.recipes.hive_node},
     enabled = false,
-    energy_required = 5,
+    energy_required = 1,
     ingredients =
     {
       {type = "item", name = "steel-plate", amount = 20},
@@ -34,7 +34,7 @@ data:extend(
     name = shared.recipes.hive_lab,
     localised_name = {"recipe-name." .. shared.recipes.hive_lab},
     enabled = false,
-    energy_required = 5,
+    energy_required = 1,
     ingredients =
     {
       {type = "item", name = "electronic-circuit", amount = 10},
@@ -51,7 +51,7 @@ data:extend(
     name = shared.recipes.pheromones,
     localised_name = {"recipe-name." .. shared.recipes.pheromones},
     enabled = false,
-    energy_required = 60,
+    energy_required = 1,
     results =
     {
       {type = "item", name = shared.items.pheromones, amount = 1}
@@ -62,7 +62,7 @@ data:extend(
     name = shared.recipes.use_pheromones,
     localised_name = {"recipe-name." .. shared.recipes.use_pheromones},
     enabled = false,
-    energy_required = 0.1,
+    energy_required = 1,
     ingredients =
     {
       {type = "item", name = shared.items.pheromones, amount = 1}
