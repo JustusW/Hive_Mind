@@ -7,7 +7,7 @@ data:extend(
     name = shared.recipes.hive,
     localised_name = {"recipe-name." .. shared.recipes.hive},
     enabled = false,
-    energy_required = 5,
+    energy_required = 0.1,
     results =
     {
       {type = "item", name = shared.items.hive, amount = 1}

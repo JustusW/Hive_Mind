@@ -115,6 +115,13 @@ local function clear_character_inventory(player)
   end
 end
 
+local function clear_player_inventory(player)
+  local inventory = player.get_main_inventory()
+  if inventory then
+    inventory.clear()
+  end
+end
+
 local function update_join_button(player)
   local flow = mod_gui.get_button_flow(player)
   local button = flow[shared.gui.join_button]
@@ -148,21 +155,26 @@ local function apply_hive_director_state(player)
   local force = get_hive_force()
   configure_hive_force(force)
   player.force = force
+  local surface = player.surface
+  local position = player.position
 
   if player.character and player.character.valid then
     clear_character_inventory(player)
-    player.character.destructible = false
-    player.character.operable = false
-    player.character.color = {r = 0, g = 0, b = 0, a = 0}
+    player.character.destroy()
   end
 
-  player.character_mining_speed_modifier = -1
-  player.character_build_distance_bonus = math.max(player.character_build_distance_bonus, 64)
-  player.character_reach_distance_bonus = math.max(player.character_reach_distance_bonus, 64)
-  player.character_resource_reach_distance_bonus = math.max(player.character_resource_reach_distance_bonus, 64)
-  player.character_item_pickup_distance_bonus = 0
-  player.character_loot_pickup_distance_bonus = 0
-  player.character_running_speed_modifier = 0
+  player.set_controller
+  {
+    type = defines.controllers.god,
+    position = position,
+    surface = surface
+  }
+
+  clear_player_inventory(player)
+  local inventory = player.get_main_inventory()
+  if inventory then
+    inventory.insert{name = shared.items.hive, count = 1}
+  end
   player.clear_cursor()
   player.print({"gui.hm-hive-joined"})
 end
@@ -257,7 +269,7 @@ local function has_active_pheromones(player)
     return false
   end
 
-  local inventory = player.character and player.character.get_main_inventory()
+  local inventory = player.get_main_inventory()
   if not inventory or inventory.get_item_count(shared.items.pheromones) <= 0 then
     current.pheromones[player.index] = nil
     return false
@@ -318,8 +330,8 @@ end
 
 local function get_unit_recruit_target(player)
   if not (player and player.valid) then return end
-  if has_active_pheromones(player) and player.character and player.character.valid then
-    return {type = "player", entity = player.character, player = player}
+  if has_active_pheromones(player) then
+    return {type = "player", entity = player, player = player}
   end
 
   local hive = get_primary_player_hive(player.index)
@@ -457,7 +469,7 @@ local function get_best_hive_for_position(surface, position, range)
 end
 
 local function command_unit_to_target(unit, target)
-  if not (unit and unit.valid and target and target.entity and target.entity.valid) then return end
+  if not (unit and unit.valid and target) then return end
 
   if unit.force ~= get_hive_force() then
     unit.force = get_hive_force()
@@ -465,13 +477,26 @@ local function command_unit_to_target(unit, target)
 
   local commandable = unit.commandable
   if not commandable then return end
-  commandable.set_command
-  {
-    type = defines.command.go_to_location,
-    destination_entity = target.entity,
-    distraction = defines.distraction.none,
-    radius = 1
-  }
+  if target.type == "player" and target.player and target.player.valid then
+    commandable.set_command
+    {
+      type = defines.command.go_to_location,
+      destination = target.player.position,
+      distraction = defines.distraction.none,
+      radius = 1
+    }
+    return
+  end
+
+  if target.entity and target.entity.valid then
+    commandable.set_command
+    {
+      type = defines.command.go_to_location,
+      destination_entity = target.entity,
+      distraction = defines.distraction.none,
+      radius = 1
+    }
+  end
 end
 
 local function recruit_units_to_hive_targets()
@@ -566,11 +591,11 @@ local function expire_pheromones()
   for player_index, pheromones in pairs(current.pheromones) do
     if pheromones.expire_tick <= game.tick then
       local player = game.get_player(player_index)
-      if player and player.valid and player.character and player.character.valid then
-        local inventory = player.character.get_main_inventory()
-        if inventory then
-          inventory.remove{name = shared.items.pheromones, count = inventory.get_item_count(shared.items.pheromones)}
-        end
+        if player and player.valid then
+          local inventory = player.get_main_inventory()
+          if inventory then
+            inventory.remove{name = shared.items.pheromones, count = inventory.get_item_count(shared.items.pheromones)}
+          end
         player.print({"message.hm-pheromones-faded"})
       end
       current.pheromones[player_index] = nil
@@ -724,9 +749,7 @@ end
 
 local function clear_forbidden_inventory(player, inventory_id)
   if not is_hive_player(player) then return end
-  local character = player.character
-  if not (character and character.valid) then return end
-  local inventory = character.get_inventory(inventory_id)
+  local inventory = player.get_inventory(inventory_id)
   if not inventory then return end
   inventory.clear()
 end
@@ -734,9 +757,7 @@ end
 local function on_player_main_inventory_changed(event)
   local player = game.get_player(event.player_index)
   if not is_hive_player(player) then return end
-  local character = player.character
-  if not (character and character.valid) then return end
-  local inventory = character.get_main_inventory()
+  local inventory = player.get_main_inventory()
   if not inventory then return end
 
   local allowed_counts = {}
