@@ -10,7 +10,8 @@ local state =
   joined_players = {},
   hive_storage = {},
   pheromones = {},
-  hive_nodes = {}
+  hive_nodes = {},
+  restore_entities = {}
 }
 
 local allowed_cursor_items =
@@ -173,6 +174,7 @@ local function apply_hive_director_state(player)
   local force = get_hive_force()
   configure_hive_force(force)
   player.force = force
+  player.cheat_mode = true
   local surface = player.surface
   local position = player.position
 
@@ -192,6 +194,52 @@ local function apply_hive_director_state(player)
   clear_player_inventory(player)
   player.clear_cursor()
   player.print({"gui.hm-hive-joined"})
+end
+
+local function queue_restored_entity(entity)
+  local current = get_state()
+  local restore = {
+    name = entity.name,
+    position = {x = entity.position.x, y = entity.position.y},
+    direction = entity.direction,
+    surface_index = entity.surface.index,
+    force_name = entity.force and entity.force.name or nil
+  }
+
+  local ok_amount, amount = pcall(function()
+    return entity.amount
+  end)
+  if ok_amount then
+    restore.amount = amount
+  end
+
+  current.restore_entities[#current.restore_entities + 1] = restore
+end
+
+local function restore_mined_entities()
+  local current = get_state()
+  if #current.restore_entities == 0 then return end
+
+  local pending = current.restore_entities
+  current.restore_entities = {}
+  for _, restore in pairs(pending) do
+    local surface = game.surfaces[restore.surface_index]
+    if surface then
+      local params =
+      {
+        name = restore.name,
+        position = restore.position,
+        direction = restore.direction,
+        force = restore.force_name
+      }
+      if restore.amount then
+        params.amount = restore.amount
+      end
+      pcall(function()
+        surface.create_entity(params)
+      end)
+    end
+  end
 end
 
 local function join_hive(player)
@@ -740,14 +788,46 @@ local function on_player_respawned(event)
 end
 
 local function on_player_crafted_item(event)
-  if event.recipe.name ~= shared.recipes.pheromones then return end
   local player = game.get_player(event.player_index)
   if not is_hive_player(player) then return end
-  local current = get_state()
-  current.pheromones[player.index] =
-  {
-    expire_tick = game.tick + shared.costs.pheromones_duration_ticks
-  }
+  local recipe_name = event.recipe.name
+  if recipe_name ~= shared.recipes.pheromones and recipe_name ~= shared.recipes.hive then return end
+
+  local stack = event.item_stack
+  if not (stack and stack.valid_for_read) then return end
+
+  if recipe_name == shared.recipes.pheromones then
+    stack.spoil_tick = game.tick + shared.costs.pheromones_duration_ticks
+    local current = get_state()
+    current.pheromones[player.index] =
+    {
+      expire_tick = game.tick + shared.costs.pheromones_duration_ticks
+    }
+  end
+
+  player.insert(stack)
+  stack.clear()
+end
+
+local function on_player_mined_entity(event)
+  local player = game.get_player(event.player_index)
+  if not is_hive_player(player) then return end
+  if event.buffer then
+    event.buffer.clear()
+  end
+  if event.entity and event.entity.valid then
+    queue_restored_entity(event.entity)
+  end
+  player.print({"message.hm-no-mining"})
+end
+
+local function on_player_mined_item(event)
+  local player = game.get_player(event.player_index)
+  if not is_hive_player(player) then return end
+  local inventory = player.get_main_inventory()
+  if inventory then
+    inventory.remove{name = event.item_stack.name, count = event.item_stack.count}
+  end
 end
 
 local function on_player_cursor_stack_changed(event)
@@ -812,6 +892,7 @@ local function on_tick(event)
   if event.tick % shared.intervals.pheromones == 0 then
     expire_pheromones()
   end
+  restore_mined_entities()
   if event.tick % shared.intervals.recruit == 0 then
     recruit_units_to_hive_targets()
   end
@@ -857,6 +938,8 @@ script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_player_respawned, on_player_respawned)
 script.on_event(defines.events.on_player_crafted_item, on_player_crafted_item)
 script.on_event(defines.events.on_player_cursor_stack_changed, on_player_cursor_stack_changed)
+script.on_event(defines.events.on_player_mined_entity, on_player_mined_entity)
+script.on_event(defines.events.on_player_mined_item, on_player_mined_item)
 script.on_event(defines.events.on_player_main_inventory_changed, on_player_main_inventory_changed)
 script.on_event(defines.events.on_player_gun_inventory_changed, function(event) clear_forbidden_inventory(game.get_player(event.player_index), defines.inventory.character_guns) end)
 script.on_event(defines.events.on_player_ammo_inventory_changed, function(event) clear_forbidden_inventory(game.get_player(event.player_index), defines.inventory.character_ammo) end)
@@ -869,6 +952,5 @@ script.on_event(defines.events.script_raised_built, on_built_entity)
 script.on_event(defines.events.on_robot_built_entity, on_built_entity)
 
 script.on_event(defines.events.on_entity_died, on_removed_entity)
-script.on_event(defines.events.on_player_mined_entity, on_removed_entity)
 script.on_event(defines.events.on_robot_mined_entity, on_removed_entity)
 script.on_event(defines.events.script_raised_destroy, on_removed_entity)
