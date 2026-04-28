@@ -64,7 +64,7 @@ data:extend(
   ),
   make_technology(
     shared.technologies.worms_behemoth,
-    "__base__/graphics/technology/stronger-explosives-4.png",
+    "__base__/graphics/technology/stronger-explosives-3.png",
     "z[hive]-f[worms-behemoth]",
     {},
     {shared.technologies.worms_big}
