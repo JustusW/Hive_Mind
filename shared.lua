@@ -84,4 +84,12 @@ function shared.creature_item_name(unit_name)
   return shared.creature_item_prefix .. unit_name
 end
 
+function shared.creature_unit_name(item_name)
+  if type(item_name) ~= "string" then return nil end
+  if item_name:sub(1, #shared.creature_item_prefix) ~= shared.creature_item_prefix then
+    return nil
+  end
+  return item_name:sub(#shared.creature_item_prefix + 1)
+end
+
 return shared

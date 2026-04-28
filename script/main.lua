@@ -343,6 +343,27 @@ local function get_hive_inventory(entity)
   return entity.get_inventory(defines.inventory.chest)
 end
 
+local function get_creature_counts_from_inventory(entity)
+  local counts = {}
+  local inventory = get_hive_inventory(entity)
+  if not inventory then
+    return counts
+  end
+
+  for item_name, count in pairs(inventory.get_contents()) do
+    local unit_name = shared.creature_unit_name(item_name)
+    if unit_name and count > 0 then
+      counts[unit_name] = count
+    end
+  end
+  return counts
+end
+
+local function sync_hive_storage_from_inventory(storage)
+  if not storage then return end
+  storage.creatures = get_creature_counts_from_inventory(storage.entity)
+end
+
 local function add_creature_to_hive_storage(storage, unit_name, count)
   local amount = count or 1
   local entity = storage and storage.entity
@@ -360,6 +381,7 @@ local function add_creature_to_hive_storage(storage, unit_name, count)
 end
 
 local function remove_creature_from_hive_storage(storage, unit_name, count)
+  sync_hive_storage_from_inventory(storage)
   local amount = count or 1
   local available = storage.creatures[unit_name] or 0
   if available <= 0 then
@@ -483,6 +505,7 @@ local function get_total_stored_creatures(storage)
 end
 
 local function consume_hive_pollution(storage, amount)
+  sync_hive_storage_from_inventory(storage)
   if amount <= 0 then return true end
   if storage.pollution >= amount then
     storage.pollution = storage.pollution - amount
@@ -685,8 +708,17 @@ local function release_hive_contents(entity)
   if not storage then return end
   local surface = entity.surface
   local force = get_hive_force()
+  local inventory_counts = get_creature_counts_from_inventory(entity)
+  local released_counts = {}
 
   for unit_name, count in pairs(storage.creatures) do
+    released_counts[unit_name] = math.max(released_counts[unit_name] or 0, count)
+  end
+  for unit_name, count in pairs(inventory_counts) do
+    released_counts[unit_name] = math.max(released_counts[unit_name] or 0, count)
+  end
+
+  for unit_name, count in pairs(released_counts) do
     for _ = 1, count do
       local position = surface.find_non_colliding_position(unit_name, entity.position, 24, 0.5)
       if position then
@@ -839,6 +871,12 @@ local function on_removed_entity(event)
   end
 end
 
+local function on_pre_removed_entity(event)
+  local entity = event.entity
+  if not is_hive_entity(entity) then return end
+  release_hive_contents(entity)
+end
+
 local function on_player_created(event)
   local player = game.get_player(event.player_index)
   if not (player and player.valid) then return end
@@ -900,41 +938,11 @@ local function on_player_mined_item(event)
   end
 end
 
-local function on_player_cursor_stack_changed(event)
-  local player = game.get_player(event.player_index)
-  if not is_hive_player(player) then return end
-
-  local stack = player.cursor_stack
-  if not stack.valid_for_read then return end
-  if allowed_cursor_items[stack.name] or allowed_cursor_types[stack.type] then return end
-
-  player.print({"message.hm-director-only"})
-  stack.clear()
-end
-
 local function clear_forbidden_inventory(player, inventory_id)
   if not is_hive_player(player) then return end
   local inventory = player.get_inventory(inventory_id)
   if not inventory then return end
   inventory.clear()
-end
-
-local function on_player_main_inventory_changed(event)
-  local player = game.get_player(event.player_index)
-  if not is_hive_player(player) then return end
-  local inventory = player.get_main_inventory()
-  if not inventory then return end
-
-  local allowed_counts = {}
-  for name, count in pairs(inventory.get_contents()) do
-    if allowed_cursor_items[name] then
-      allowed_counts[name] = (allowed_counts[name] or 0) + count
-    end
-  end
-  inventory.clear()
-  for name, count in pairs(allowed_counts) do
-    inventory.insert{name = name, count = count}
-  end
 end
 
 local function on_gui_opened(event)
@@ -1007,10 +1015,8 @@ script.on_event(defines.events.on_player_created, on_player_created)
 script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_player_respawned, on_player_respawned)
 script.on_event(defines.events.on_player_crafted_item, on_player_crafted_item)
-script.on_event(defines.events.on_player_cursor_stack_changed, on_player_cursor_stack_changed)
 script.on_event(defines.events.on_player_mined_entity, on_player_mined_entity)
 script.on_event(defines.events.on_player_mined_item, on_player_mined_item)
-script.on_event(defines.events.on_player_main_inventory_changed, on_player_main_inventory_changed)
 script.on_event(defines.events.on_player_gun_inventory_changed, function(event) clear_forbidden_inventory(game.get_player(event.player_index), defines.inventory.character_guns) end)
 script.on_event(defines.events.on_player_ammo_inventory_changed, function(event) clear_forbidden_inventory(game.get_player(event.player_index), defines.inventory.character_ammo) end)
 script.on_event(defines.events.on_player_armor_inventory_changed, function(event) clear_forbidden_inventory(game.get_player(event.player_index), defines.inventory.character_armor) end)
@@ -1021,6 +1027,8 @@ script.on_event(defines.events.on_built_entity, on_built_entity)
 script.on_event(defines.events.script_raised_built, on_built_entity)
 script.on_event(defines.events.on_robot_built_entity, on_built_entity)
 
+script.on_event(defines.events.on_pre_player_mined_item, on_pre_removed_entity)
+script.on_event(defines.events.on_robot_pre_mined, on_pre_removed_entity)
 script.on_event(defines.events.on_entity_died, on_removed_entity)
 script.on_event(defines.events.on_robot_mined_entity, on_removed_entity)
 script.on_event(defines.events.script_raised_destroy, on_removed_entity)
