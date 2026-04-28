@@ -9,7 +9,8 @@ local state =
   hive_roles = {},
   joined_players = {},
   hive_storage = {},
-  pheromones = {}
+  pheromones = {},
+  hive_nodes = {}
 }
 
 local allowed_cursor_items =
@@ -196,6 +197,10 @@ local function is_hive_entity(entity)
   return entity and entity.valid and entity.name == shared.entities.hive
 end
 
+local function is_hive_node_entity(entity)
+  return entity and entity.valid and entity.name == shared.entities.hive_node
+end
+
 local function remove_tracked_hive(player_index, unit_number)
   local current = get_state()
   local bucket = current.hives_by_player[player_index]
@@ -203,6 +208,18 @@ local function remove_tracked_hive(player_index, unit_number)
     bucket[unit_number] = nil
   end
   current.hive_storage[unit_number] = nil
+end
+
+local function track_hive_node(entity)
+  if not (entity and entity.valid and entity.unit_number) then return end
+  local current = get_state()
+  current.hive_nodes[entity.unit_number] = {entity = entity}
+end
+
+local function untrack_hive_node(entity)
+  if not (entity and entity.valid and entity.unit_number) then return end
+  local current = get_state()
+  current.hive_nodes[entity.unit_number] = nil
 end
 
 local function get_hive_storage(entity)
@@ -309,6 +326,134 @@ local function get_unit_recruit_target(player)
   if hive then
     return {type = "hive", entity = hive, player = player}
   end
+end
+
+local function get_entity_build_cost(name)
+  return shared.build_costs[name] or 0
+end
+
+local function get_total_stored_creatures(storage)
+  local total = 0
+  for _, count in pairs(storage.creatures) do
+    total = total + count
+  end
+  return total
+end
+
+local function consume_hive_pollution(storage, amount)
+  if amount <= 0 then return true end
+  if storage.pollution >= amount then
+    storage.pollution = storage.pollution - amount
+    return true
+  end
+
+  local needed = amount - storage.pollution
+  storage.pollution = 0
+
+  while needed > 0 do
+    local converted = false
+    for unit_name, count in pairs(storage.creatures) do
+      if count > 0 then
+        local prototype = game.entity_prototypes[unit_name]
+        local pollution = get_unit_pollution_cost(prototype)
+        if pollution > 0 then
+          storage.creatures[unit_name] = count - 1
+          if storage.creatures[unit_name] <= 0 then
+            storage.creatures[unit_name] = nil
+          end
+          storage.pollution = storage.pollution + pollution
+          converted = true
+          break
+        end
+      end
+    end
+
+    if not converted then
+      return false
+    end
+
+    if storage.pollution >= needed then
+      storage.pollution = storage.pollution - needed
+      return true
+    end
+
+    needed = needed - storage.pollution
+    storage.pollution = 0
+  end
+
+  return true
+end
+
+local function get_all_service_hives()
+  local current = get_state()
+  local results = {}
+  for _, bucket in pairs(current.hives_by_player) do
+    for _, hive_data in pairs(bucket) do
+      if hive_data.entity and hive_data.entity.valid then
+        results[#results + 1] = hive_data.entity
+      end
+    end
+  end
+  return results
+end
+
+local function get_all_service_nodes()
+  local current = get_state()
+  local results = {}
+  for unit_number, node_data in pairs(current.hive_nodes) do
+    local entity = node_data.entity
+    if entity and entity.valid then
+      results[#results + 1] = entity
+    else
+      current.hive_nodes[unit_number] = nil
+    end
+  end
+  return results
+end
+
+local function position_in_service_network(surface, position)
+  for _, hive in pairs(get_all_service_hives()) do
+    if hive.surface == surface then
+      local dx = hive.position.x - position.x
+      local dy = hive.position.y - position.y
+      if math.sqrt((dx * dx) + (dy * dy)) <= shared.ranges.hive then
+        return true
+      end
+    end
+  end
+
+  for _, node in pairs(get_all_service_nodes()) do
+    if node.surface == surface then
+      local dx = node.position.x - position.x
+      local dy = node.position.y - position.y
+      if math.sqrt((dx * dx) + (dy * dy)) <= shared.ranges.hive_node then
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
+local function get_best_hive_for_position(surface, position, range)
+  if not position_in_service_network(surface, position) then
+    return
+  end
+
+  local best_entity
+  local best_distance
+  for _, entity in pairs(get_all_service_hives()) do
+    if entity.surface == surface then
+      local dx = entity.position.x - position.x
+      local dy = entity.position.y - position.y
+      local distance = math.sqrt((dx * dx) + (dy * dy))
+      if distance <= range and (not best_distance or distance < best_distance) then
+        best_distance = distance
+        best_entity = entity
+      end
+    end
+  end
+  return best_entity
 end
 
 local function command_unit_to_target(unit, target)
@@ -433,6 +578,53 @@ local function expire_pheromones()
   end
 end
 
+local function fulfill_ghost_requests()
+  local hive_force = get_hive_force()
+  for _, hive in pairs(get_all_service_hives()) do
+    local storage = get_hive_storage(hive)
+    if storage then
+      local ghosts = hive.surface.find_entities_filtered
+      {
+        position = hive.position,
+        radius = shared.ranges.hive,
+        force = hive_force,
+        type = "entity-ghost"
+      }
+
+      for _, ghost in pairs(ghosts) do
+        if ghost.valid then
+          local ghost_name = ghost.ghost_name
+          local build_cost = ghost_name and get_entity_build_cost(ghost_name) or 0
+          if build_cost > 0 and consume_hive_pollution(storage, build_cost) then
+            ghost.revive({raise_revive = true})
+          end
+        end
+      end
+    end
+  end
+end
+
+local function supply_labs()
+  local hive_force = get_hive_force()
+  for _, surface in pairs(game.surfaces) do
+    local labs = surface.find_entities_filtered{name = shared.entities.hive_lab, force = hive_force}
+    for _, lab in pairs(labs) do
+      if lab.valid then
+        local inventory = lab.get_inventory(defines.inventory.lab_input)
+        if inventory and inventory.get_item_count(shared.items.pollution_science_pack) < 10 then
+          local hive = get_best_hive_for_position(surface, lab.position, shared.ranges.hive)
+          if hive then
+            local storage = get_hive_storage(hive)
+            if storage and consume_hive_pollution(storage, shared.science.pollution_per_pack) then
+              inventory.insert{name = shared.items.pollution_science_pack, count = 1}
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
 local function destroy_previous_player_hives(player_index, newly_built)
   local current = get_state()
   current.hives_by_player[player_index] = current.hives_by_player[player_index] or {}
@@ -455,6 +647,10 @@ end
 
 local function on_built_entity(event)
   local entity = event.created_entity or event.entity
+  if is_hive_node_entity(entity) then
+    return track_hive_node(entity)
+  end
+
   if not is_hive_entity(entity) then return end
   if not event.player_index then return end
 
@@ -468,6 +664,9 @@ end
 
 local function on_removed_entity(event)
   local entity = event.entity
+  if is_hive_node_entity(entity) then
+    return untrack_hive_node(entity)
+  end
   if not is_hive_entity(entity) then return end
 
   release_hive_contents(entity)
@@ -558,6 +757,9 @@ local function on_gui_opened(event)
   if event.gui_type == defines.gui_type.entity and event.entity and event.entity.valid and event.entity.name == shared.entities.hive then
     return
   end
+  if event.gui_type == defines.gui_type.entity and event.entity and event.entity.valid and event.entity.name == shared.entities.hive_lab then
+    return
+  end
   if event.gui_type == defines.gui_type.controller then
     return
   end
@@ -579,6 +781,10 @@ local function on_tick(event)
   end
   if event.tick % shared.intervals.absorb == 0 then
     tick_hive_absorption()
+  end
+  if event.tick % shared.intervals.absorb == 0 then
+    fulfill_ghost_requests()
+    supply_labs()
   end
 end
 

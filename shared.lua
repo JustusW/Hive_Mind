@@ -60,6 +60,17 @@ shared.costs =
   pheromones_duration_ticks = 60 * 60
 }
 
+shared.build_costs =
+{
+  [shared.entities.hive_node] = 100,
+  [shared.entities.hive_lab] = 150
+}
+
+shared.science =
+{
+  pollution_per_pack = 25
+}
+
 shared.creature_roles =
 {
   attract = "attract",
