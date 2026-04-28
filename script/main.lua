@@ -441,6 +441,14 @@ local function get_unit_pollution_cost(prototype)
   return 0
 end
 
+local function get_entity_prototype(name)
+  if not name then return nil end
+  if prototypes and prototypes.entity then
+    return prototypes.entity[name]
+  end
+  return nil
+end
+
 local function has_registered_role(entity_name, role)
   local current = get_state()
   local entry = current.hive_roles[entity_name]
@@ -515,14 +523,14 @@ local function consume_hive_pollution(storage, amount)
   local needed = amount - storage.pollution
   storage.pollution = 0
 
-  while needed > 0 do
-    local converted = false
-    for unit_name, count in pairs(storage.creatures) do
-      if count > 0 then
-        local prototype = game.entity_prototypes[unit_name]
-        local pollution = get_unit_pollution_cost(prototype)
-        if pollution > 0 then
-          if remove_creature_from_hive_storage(storage, unit_name, 1) > 0 then
+    while needed > 0 do
+      local converted = false
+      for unit_name, count in pairs(storage.creatures) do
+        if count > 0 then
+          local prototype = get_entity_prototype(unit_name)
+          local pollution = get_unit_pollution_cost(prototype)
+          if pollution > 0 then
+            if remove_creature_from_hive_storage(storage, unit_name, 1) > 0 then
             storage.pollution = storage.pollution + pollution
             converted = true
             break
