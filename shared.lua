@@ -12,7 +12,8 @@ shared.entities =
 {
   hive = "hm-hive",
   hive_node = "hm-hive-node",
-  hive_lab = "hm-hive-lab"
+  hive_lab = "hm-hive-lab",
+  director_body = "hm-hive-director-body"
 }
 
 shared.items =

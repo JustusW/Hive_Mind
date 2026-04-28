@@ -141,6 +141,22 @@ local function clear_player_inventory(player)
   end
 end
 
+local function create_hive_character(player, surface, position)
+  local spawn_position = surface.find_non_colliding_position(shared.entities.director_body, position, 8, 0.25) or position
+  local character = surface.create_entity
+  {
+    name = shared.entities.director_body,
+    position = spawn_position,
+    force = player.force
+  }
+  player.character = character
+  if player.character and player.character.valid then
+    player.character.destructible = false
+    player.character.operable = false
+  end
+  player.color = {r = 1, g = 1, b = 1, a = 0}
+end
+
 local function update_join_button(player)
   local flow = mod_gui.get_button_flow(player)
   local button = flow[shared.gui.join_button]
@@ -173,23 +189,17 @@ end
 local function apply_hive_director_state(player)
   local force = get_hive_force()
   configure_hive_force(force)
-  player.force = force
-  player.cheat_mode = true
   local surface = player.surface
   local position = player.position
+  player.force = force
+  player.cheat_mode = false
 
   if player.character and player.character.valid then
     clear_character_inventory(player)
     player.character.destroy()
   end
 
-  player.set_controller
-  {
-    type = defines.controllers.god,
-    position = position,
-    surface = surface
-  }
-
+  create_hive_character(player, surface, position)
   player.permission_group = get_hive_permission_group()
   clear_player_inventory(player)
   player.clear_cursor()
@@ -775,10 +785,11 @@ local function on_player_created(event)
 end
 
 local function on_gui_click(event)
-  if event.element.name ~= shared.gui.join_button then return end
   local player = game.get_player(event.player_index)
   if not (player and player.valid) then return end
-  join_hive(player)
+  if event.element.name == shared.gui.join_button then
+    join_hive(player)
+  end
 end
 
 local function on_player_respawned(event)
@@ -793,20 +804,18 @@ local function on_player_crafted_item(event)
   local recipe_name = event.recipe.name
   if recipe_name ~= shared.recipes.pheromones and recipe_name ~= shared.recipes.hive then return end
 
-  local stack = event.item_stack
-  if not (stack and stack.valid_for_read) then return end
-
   if recipe_name == shared.recipes.pheromones then
-    stack.spoil_tick = game.tick + shared.costs.pheromones_duration_ticks
     local current = get_state()
     current.pheromones[player.index] =
     {
       expire_tick = game.tick + shared.costs.pheromones_duration_ticks
     }
+    local inventory = player.get_main_inventory()
+    local stack = inventory and inventory.find_item_stack(shared.items.pheromones)
+    if stack and stack.valid_for_read then
+      stack.spoil_tick = game.tick + shared.costs.pheromones_duration_ticks
+    end
   end
-
-  player.insert(stack)
-  stack.clear()
 end
 
 local function on_player_mined_entity(event)

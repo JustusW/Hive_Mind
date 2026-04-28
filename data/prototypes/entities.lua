@@ -42,4 +42,25 @@ hive_lab.energy_source =
 hive_lab.energy_usage = "1W"
 hive_lab.researching_speed = 1
 
-data:extend({base_hive, hive_node, hive_lab})
+local director_body = table.deepcopy(data.raw["character"]["character"])
+director_body.name = shared.entities.director_body
+director_body.localised_name = {"entity-name.character"}
+director_body.inventory_size = 20
+director_body.build_distance = 125
+director_body.drop_item_distance = 0
+director_body.reach_distance = 125
+director_body.reach_resource_distance = 0
+director_body.item_pickup_distance = 0
+director_body.loot_pickup_distance = 0
+director_body.enter_vehicle_distance = 0
+director_body.mining_speed = 0
+director_body.running_speed = 0.25
+director_body.collision_box = {{0, 0}, {0, 0}}
+director_body.selection_box = {{-0.1, -0.1}, {0.1, 0.1}}
+director_body.collision_mask = {layers = {}}
+director_body.character_corpse = nil
+director_body.light = nil
+director_body.max_health = 1000000
+director_body.healing_per_tick = 1000
+
+data:extend({base_hive, hive_node, hive_lab, director_body})
