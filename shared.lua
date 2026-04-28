@@ -2,6 +2,7 @@ local shared = {}
 
 shared.prefix = "hm-"
 shared.force_name = "hivemind"
+shared.permission_group = "hm-hive-director"
 shared.gui =
 {
   join_button = "hm-join-hive-button"

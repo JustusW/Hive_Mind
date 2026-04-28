@@ -75,6 +75,24 @@ local function get_hive_force()
   return force
 end
 
+local function get_hive_permission_group()
+  local groups = game.permissions
+  local group = groups.get_group(shared.permission_group)
+  if group then
+    return group
+  end
+
+  group = groups.create_group(shared.permission_group)
+  group.set_allows_action(defines.input_action.begin_mining, false)
+  group.set_allows_action(defines.input_action.begin_mining_terrain, false)
+  group.set_allows_action(defines.input_action.drop_item, false)
+  group.set_allows_action(defines.input_action.fast_entity_transfer, false)
+  group.set_allows_action(defines.input_action.inventory_transfer, false)
+  group.set_allows_action(defines.input_action.stack_transfer, false)
+  group.set_allows_action(defines.input_action.cursor_transfer, false)
+  return group
+end
+
 local function configure_hive_force(force)
   if not (force and force.valid) then return end
 
@@ -170,11 +188,8 @@ local function apply_hive_director_state(player)
     surface = surface
   }
 
+  player.permission_group = get_hive_permission_group()
   clear_player_inventory(player)
-  local inventory = player.get_main_inventory()
-  if inventory then
-    inventory.insert{name = shared.items.hive, count = 1}
-  end
   player.clear_cursor()
   player.print({"gui.hm-hive-joined"})
 end
@@ -825,6 +840,7 @@ script.on_init(function()
   get_state()
   init_role_registry()
   configure_hive_force(get_hive_force())
+  get_hive_permission_group()
   update_all_join_buttons()
 end)
 
@@ -832,6 +848,7 @@ script.on_configuration_changed(function()
   get_state()
   init_role_registry()
   configure_hive_force(get_hive_force())
+  get_hive_permission_group()
   update_all_join_buttons()
 end)
 
