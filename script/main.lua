@@ -7,7 +7,9 @@ local state =
 {
   hives_by_player = {},
   hive_roles = {},
-  joined_players = {}
+  joined_players = {},
+  hive_storage = {},
+  pheromones = {}
 }
 
 local allowed_cursor_items =
@@ -43,6 +45,10 @@ end
 local function is_hive_player(player)
   local current = get_state()
   return player and player.valid and current.joined_players[player.index] == true
+end
+
+local function get_enemy_force()
+  return game.forces.enemy
 end
 
 local function get_hive_force()
@@ -141,7 +147,6 @@ local function apply_hive_director_state(player)
   local force = get_hive_force()
   configure_hive_force(force)
   player.force = force
-  player.cheat_mode = true
 
   if player.character and player.character.valid then
     clear_character_inventory(player)
@@ -197,6 +202,235 @@ local function remove_tracked_hive(player_index, unit_number)
   if bucket then
     bucket[unit_number] = nil
   end
+  current.hive_storage[unit_number] = nil
+end
+
+local function get_hive_storage(entity)
+  local current = get_state()
+  if not (entity and entity.valid and entity.unit_number) then return end
+  current.hive_storage[entity.unit_number] = current.hive_storage[entity.unit_number] or
+  {
+    owner_index = nil,
+    entity = entity,
+    creatures = {},
+    pollution = 0
+  }
+  local storage = current.hive_storage[entity.unit_number]
+  storage.entity = entity
+  return storage
+end
+
+local function get_primary_player_hive(player_index)
+  local current = get_state()
+  local bucket = current.hives_by_player[player_index] or {}
+  for _, hive_data in pairs(bucket) do
+    local entity = hive_data.entity
+    if entity and entity.valid then
+      return entity
+    end
+  end
+end
+
+local function has_active_pheromones(player)
+  local current = get_state()
+  local pheromones = current.pheromones[player.index]
+  if not pheromones then return false end
+  if pheromones.expire_tick <= game.tick then
+    current.pheromones[player.index] = nil
+    return false
+  end
+
+  local inventory = player.character and player.character.get_main_inventory()
+  if not inventory or inventory.get_item_count(shared.items.pheromones) <= 0 then
+    current.pheromones[player.index] = nil
+    return false
+  end
+
+  return true
+end
+
+local function get_unit_pollution_cost(prototype)
+  if not prototype then return 0 end
+
+  local ok, pollution_to_join_attack = pcall(function()
+    return prototype.pollution_to_join_attack
+  end)
+  if ok and pollution_to_join_attack then
+    return pollution_to_join_attack
+  end
+
+  local ok_absorb, absorptions_to_join_attack = pcall(function()
+    return prototype.absorptions_to_join_attack
+  end)
+  if ok_absorb and absorptions_to_join_attack and absorptions_to_join_attack.pollution then
+    return absorptions_to_join_attack.pollution
+  end
+
+  local ok_attack, attack_parameters = pcall(function()
+    return prototype.attack_parameters
+  end)
+  if ok_attack and attack_parameters and attack_parameters.pollution_to_join_attack then
+    return attack_parameters.pollution_to_join_attack
+  end
+
+  return 0
+end
+
+local function has_registered_role(entity_name, role)
+  local current = get_state()
+  local entry = current.hive_roles[entity_name]
+  return entry and entry[role] == true or false
+end
+
+local function is_default_hive_creature(entity, role)
+  if not (entity and entity.valid) then return false end
+  if entity.type ~= "unit" then return false end
+  if role == shared.creature_roles.attract or role == shared.creature_roles.store or role == shared.creature_roles.consume then
+    return true
+  end
+  return false
+end
+
+local function is_hive_creature_for_role(entity, role)
+  if not (entity and entity.valid) then return false end
+  if has_registered_role(entity.name, role) then
+    return true
+  end
+  return is_default_hive_creature(entity, role)
+end
+
+local function get_unit_recruit_target(player)
+  if not (player and player.valid) then return end
+  if has_active_pheromones(player) and player.character and player.character.valid then
+    return {type = "player", entity = player.character, player = player}
+  end
+
+  local hive = get_primary_player_hive(player.index)
+  if hive then
+    return {type = "hive", entity = hive, player = player}
+  end
+end
+
+local function command_unit_to_target(unit, target)
+  if not (unit and unit.valid and target and target.entity and target.entity.valid) then return end
+
+  if unit.force ~= get_hive_force() then
+    unit.force = get_hive_force()
+  end
+
+  local commandable = unit.commandable
+  if not commandable then return end
+  commandable.set_command
+  {
+    type = defines.command.go_to_location,
+    destination_entity = target.entity,
+    distraction = defines.distraction.none,
+    radius = 1
+  }
+end
+
+local function recruit_units_to_hive_targets()
+  local current = get_state()
+  local enemy_force = get_enemy_force()
+  local hive_force = get_hive_force()
+
+  for player_index in pairs(current.joined_players) do
+    local player = game.get_player(player_index)
+    local target = get_unit_recruit_target(player)
+    if not target then
+      goto continue_player
+    end
+
+    local surface = target.entity.surface
+    local units = surface.find_entities_filtered
+    {
+      position = target.entity.position,
+      radius = shared.ranges.hive,
+      type = "unit"
+    }
+
+    for _, unit in pairs(units) do
+      if unit.valid and (unit.force == enemy_force or unit.force == hive_force) and is_hive_creature_for_role(unit, shared.creature_roles.attract) then
+        command_unit_to_target(unit, target)
+      end
+    end
+
+    ::continue_player::
+  end
+end
+
+local function absorb_units_into_hive(entity)
+  local storage = get_hive_storage(entity)
+  if not storage then return end
+
+  local surface = entity.surface
+  local hive_force = get_hive_force()
+  local nearby_units = surface.find_entities_filtered
+  {
+    position = entity.position,
+    radius = 3,
+    type = "unit",
+    force = hive_force
+  }
+
+  for _, unit in pairs(nearby_units) do
+    if unit.valid and is_hive_creature_for_role(unit, shared.creature_roles.store) then
+      local count = storage.creatures[unit.name] or 0
+      storage.creatures[unit.name] = count + 1
+      unit.destroy({raise_destroy = true})
+    end
+  end
+end
+
+local function release_hive_contents(entity)
+  local storage = get_hive_storage(entity)
+  if not storage then return end
+  local surface = entity.surface
+  local force = get_hive_force()
+
+  for unit_name, count in pairs(storage.creatures) do
+    for _ = 1, count do
+      local position = surface.find_non_colliding_position(unit_name, entity.position, 24, 0.5)
+      if position then
+        surface.create_entity
+        {
+          name = unit_name,
+          position = position,
+          force = force,
+          raise_built = true
+        }
+      end
+    end
+  end
+end
+
+local function tick_hive_absorption()
+  local current = get_state()
+  for _, bucket in pairs(current.hives_by_player) do
+    for _, hive_data in pairs(bucket) do
+      local entity = hive_data.entity
+      if entity and entity.valid then
+        absorb_units_into_hive(entity)
+      end
+    end
+  end
+end
+
+local function expire_pheromones()
+  local current = get_state()
+  for player_index, pheromones in pairs(current.pheromones) do
+    if pheromones.expire_tick <= game.tick then
+      local player = game.get_player(player_index)
+      if player and player.valid and player.character and player.character.valid then
+        local inventory = player.character.get_main_inventory()
+        if inventory then
+          inventory.remove{name = shared.items.pheromones, count = inventory.get_item_count(shared.items.pheromones)}
+        end
+        player.print({"message.hm-pheromones-faded"})
+      end
+      current.pheromones[player_index] = nil
+    end
+  end
 end
 
 local function destroy_previous_player_hives(player_index, newly_built)
@@ -213,6 +447,10 @@ local function destroy_previous_player_hives(player_index, newly_built)
     end
   end
   bucket[newly_built.unit_number] = {entity = newly_built}
+  local storage = get_hive_storage(newly_built)
+  if storage then
+    storage.owner_index = player_index
+  end
 end
 
 local function on_built_entity(event)
@@ -231,6 +469,8 @@ end
 local function on_removed_entity(event)
   local entity = event.entity
   if not is_hive_entity(entity) then return end
+
+  release_hive_contents(entity)
 
   local current = get_state()
   for player_index, bucket in pairs(current.hives_by_player) do
@@ -258,6 +498,17 @@ local function on_player_respawned(event)
   local player = game.get_player(event.player_index)
   if not is_hive_player(player) then return end
   apply_hive_director_state(player)
+end
+
+local function on_player_crafted_item(event)
+  if event.recipe.name ~= shared.recipes.pheromones then return end
+  local player = game.get_player(event.player_index)
+  if not is_hive_player(player) then return end
+  local current = get_state()
+  current.pheromones[player.index] =
+  {
+    expire_tick = game.tick + shared.costs.pheromones_duration_ticks
+  }
 end
 
 local function on_player_cursor_stack_changed(event)
@@ -304,6 +555,9 @@ end
 local function on_gui_opened(event)
   local player = game.get_player(event.player_index)
   if not is_hive_player(player) then return end
+  if event.gui_type == defines.gui_type.entity and event.entity and event.entity.valid and event.entity.name == shared.entities.hive then
+    return
+  end
   if event.gui_type == defines.gui_type.controller then
     return
   end
@@ -314,6 +568,18 @@ local function on_gui_opened(event)
     return
   end
   player.opened = nil
+end
+
+local function on_tick(event)
+  if event.tick % shared.intervals.pheromones == 0 then
+    expire_pheromones()
+  end
+  if event.tick % shared.intervals.recruit == 0 then
+    recruit_units_to_hive_targets()
+  end
+  if event.tick % shared.intervals.absorb == 0 then
+    tick_hive_absorption()
+  end
 end
 
 remote.add_interface("hive_reboot",
@@ -345,12 +611,14 @@ end)
 script.on_event(defines.events.on_player_created, on_player_created)
 script.on_event(defines.events.on_gui_click, on_gui_click)
 script.on_event(defines.events.on_player_respawned, on_player_respawned)
+script.on_event(defines.events.on_player_crafted_item, on_player_crafted_item)
 script.on_event(defines.events.on_player_cursor_stack_changed, on_player_cursor_stack_changed)
 script.on_event(defines.events.on_player_main_inventory_changed, on_player_main_inventory_changed)
 script.on_event(defines.events.on_player_gun_inventory_changed, function(event) clear_forbidden_inventory(game.get_player(event.player_index), defines.inventory.character_guns) end)
 script.on_event(defines.events.on_player_ammo_inventory_changed, function(event) clear_forbidden_inventory(game.get_player(event.player_index), defines.inventory.character_ammo) end)
 script.on_event(defines.events.on_player_armor_inventory_changed, function(event) clear_forbidden_inventory(game.get_player(event.player_index), defines.inventory.character_armor) end)
 script.on_event(defines.events.on_gui_opened, on_gui_opened)
+script.on_event(defines.events.on_tick, on_tick)
 
 script.on_event(defines.events.on_built_entity, on_built_entity)
 script.on_event(defines.events.script_raised_built, on_built_entity)

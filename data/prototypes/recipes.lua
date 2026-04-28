@@ -8,11 +8,6 @@ data:extend(
     localised_name = {"recipe-name." .. shared.recipes.hive},
     enabled = false,
     energy_required = 5,
-    ingredients =
-    {
-      {type = "item", name = "stone", amount = 20},
-      {type = "item", name = "iron-plate", amount = 20}
-    },
     results =
     {
       {type = "item", name = shared.items.hive, amount = 1}
@@ -57,10 +52,6 @@ data:extend(
     localised_name = {"recipe-name." .. shared.recipes.pheromones},
     enabled = false,
     energy_required = 60,
-    ingredients =
-    {
-      {type = "item", name = "coal", amount = 1}
-    },
     results =
     {
       {type = "item", name = shared.items.pheromones, amount = 1}

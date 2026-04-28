@@ -48,6 +48,18 @@ shared.ranges =
   hive_node = 500
 }
 
+shared.intervals =
+{
+  recruit = 120,
+  absorb = 30,
+  pheromones = 60
+}
+
+shared.costs =
+{
+  pheromones_duration_ticks = 60 * 60
+}
+
 shared.creature_roles =
 {
   attract = "attract",
