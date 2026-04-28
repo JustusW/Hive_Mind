@@ -11,6 +11,15 @@ local script_data =
 local persistent = storage or global
 
 local names = require("shared")
+local required_pollution = names.required_pollution
+local pollution_cost_multiplier = names.pollution_cost_multiplier
+
+local get_entity_prototypes = function()
+  if prototypes and prototypes.entity then
+    return prototypes.entity
+  end
+  return game.entity_prototypes
+end
 
 
 local on_chunk_generated = function(event)
@@ -21,7 +30,7 @@ local on_chunk_generated = function(event)
     if not script_data.spreading_landmines[unit_number] then
       local landmine = entity.surface.create_entity{name = names.creep_landmine, position = entity.position, force = entity.force}
       landmine.destructible = false
-      script_data.spreading_landmines[unit_number] = {entity = landmine, radius = 1}
+      script_data.spreading_landmines[unit_number] = {entity = landmine, source = entity, radius = 1}
     end
   end
 end
@@ -38,6 +47,78 @@ local creep_spread_map =
 local creep_spread_list = {}
 for name, bool in pairs (creep_spread_map) do
   table.insert(creep_spread_list, name)
+end
+
+local try_get = function(fn)
+  local ok, value = pcall(fn)
+  if ok then
+    return value
+  end
+end
+
+local get_unit_pollution_cost = function(prototype)
+  local pollution_to_join_attack = try_get(function()
+    return prototype.pollution_to_join_attack
+  end)
+  if pollution_to_join_attack then
+    return pollution_to_join_attack
+  end
+
+  local absorptions_to_join_attack = try_get(function()
+    return prototype.absorptions_to_join_attack
+  end)
+  if absorptions_to_join_attack and absorptions_to_join_attack.pollution then
+    return absorptions_to_join_attack.pollution
+  end
+
+  local attack_parameters = try_get(function()
+    return prototype.attack_parameters
+  end)
+  if attack_parameters and attack_parameters.pollution_to_join_attack then
+    return attack_parameters.pollution_to_join_attack
+  end
+
+  return 0
+end
+
+local release_tumor_refund_units = function(surface, position, force)
+  local prototype = get_entity_prototypes()["small-biter"]
+  if not prototype then return end
+
+  local unit_cost = math.max(1, get_unit_pollution_cost(prototype))
+  local refund_pollution = required_pollution[names.creep_tumor] * pollution_cost_multiplier * 0.1
+  local refund_count = math.max(1, math.floor((refund_pollution / unit_cost) + 0.5))
+
+  for _ = 1, refund_count do
+    local spawn_position = surface.find_non_colliding_position("small-biter", position, 6, 0.5)
+    if not spawn_position then
+      break
+    end
+    surface.create_entity
+    {
+      name = "small-biter",
+      position = spawn_position,
+      force = force,
+      raise_built = true
+    }
+  end
+end
+
+local damage_tumor_for_failed_spread = function(spawner, damage)
+  if not (spawner and spawner.valid and spawner.name == names.creep_tumor) then return end
+
+  local health = spawner.health
+  if not health then
+    spawner.die()
+    return
+  end
+
+  health = health - (damage or 1)
+  if health <= 0 then
+    spawner.die()
+  else
+    spawner.health = health
+  end
 end
 
 local shuffle_table = function(table)
@@ -60,7 +141,7 @@ local on_built_entity = function(event)
     if not script_data.spreading_landmines[unit_number] then
       local landmine = entity.surface.create_entity{name = names.creep_landmine, position = entity.position, force = entity.force}
       landmine.destructible = false
-      script_data.spreading_landmines[unit_number] = {entity = landmine, radius = 1}
+      script_data.spreading_landmines[unit_number] = {entity = landmine, source = entity, radius = 1}
     end
   end
 
@@ -96,10 +177,83 @@ end
 
 local root_2 = 2 ^ 0.5
 
+local rebind_spread_sources = function()
+  local source_map = {}
+  for _, surface in pairs(game.surfaces) do
+    for _, entity in pairs(surface.find_entities_filtered{name = creep_spread_list}) do
+      if entity.valid and entity.unit_number then
+        source_map[entity.unit_number] = entity
+      end
+    end
+  end
+
+  for unit_number, landmine_data in pairs(script_data.spreading_landmines or {}) do
+    if not (landmine_data.source and landmine_data.source.valid) then
+      landmine_data.source = source_map[unit_number]
+    end
+  end
+
+  for unit_number, landmine_data in pairs(script_data.idle_landmines or {}) do
+    if not (landmine_data.source and landmine_data.source.valid) then
+      landmine_data.source = source_map[unit_number]
+    end
+  end
+end
+
+local find_spread_source = function(unit_number, landmine_data)
+  if landmine_data.source and landmine_data.source.valid then
+    return landmine_data.source
+  end
+
+  local anchor = landmine_data.entity
+  if not (anchor and anchor.valid) then return end
+
+  local candidates = anchor.surface.find_entities_filtered
+  {
+    name = creep_spread_list,
+    position = anchor.position,
+    radius = 0.5
+  }
+
+  for _, candidate in pairs(candidates) do
+    if candidate.valid and candidate.unit_number == unit_number then
+      landmine_data.source = candidate
+      return candidate
+    end
+  end
+
+  local candidate = candidates[1]
+  if candidate and candidate.valid then
+    landmine_data.source = candidate
+    return candidate
+  end
+end
+
+local repair_spread_state = function()
+  rebind_spread_sources()
+
+  for unit_number, landmine_data in pairs(script_data.spreading_landmines or {}) do
+    if not find_spread_source(unit_number, landmine_data) then
+      script_data.spreading_landmines[unit_number] = nil
+    end
+  end
+
+  for unit_number, landmine_data in pairs(script_data.idle_landmines or {}) do
+    local source = find_spread_source(unit_number, landmine_data)
+    if not source then
+      script_data.idle_landmines[unit_number] = nil
+    elseif source.name == names.creep_tumor then
+      script_data.idle_landmines[unit_number] = nil
+      landmine_data.tiles = nil
+      script_data.spreading_landmines[unit_number] = landmine_data
+    end
+  end
+end
+
 local spread_creep
 spread_creep = function(unit_number, spawner_data)
 
-  local spawner = spawner_data.entity
+  local spawner = find_spread_source(unit_number, spawner_data) or spawner_data.entity
 
   if not spawner.valid then
     script_data.spreading_landmines[unit_number] = nil
@@ -114,6 +268,10 @@ spread_creep = function(unit_number, spawner_data)
   if not tiles then
 
     if radius == max_radius then
+      if spawner.name == names.creep_tumor then
+        damage_tumor_for_failed_spread(spawner, 1)
+        return
+      end
       script_data.idle_landmines[unit_number] = spawner_data
       script_data.spreading_landmines[unit_number] = nil
       return
@@ -253,6 +411,10 @@ local check_set_tile_register = function()
 end
 
 local on_tick = function(event)
+  if script_data.needs_repair or event.tick % 600 == 0 then
+    repair_spread_state()
+    script_data.needs_repair = false
+  end
   check_creep_spread(event)
   check_creep_unspread(event)
   check_set_tile_register()
@@ -276,6 +438,9 @@ end
 local on_entity_died = function(event)
   local entity = event.entity
   if not (entity and entity.valid) then return end
+  if entity.name == names.creep_tumor then
+    release_tumor_refund_units(entity.surface, entity.position, entity.force)
+  end
   local unit_number = entity.unit_number
   local landmine_data = script_data.idle_landmines[unit_number] or script_data.spreading_landmines[unit_number]
   if not landmine_data then return end
@@ -321,25 +486,31 @@ lib.get_events = function() return events end
 
 lib.on_init = function()
   persistent.creep = persistent.creep or script_data
+  script_data = persistent.creep
   for k, surface in pairs (game.surfaces) do
     for k, v in pairs (surface.find_entities_filtered{name = creep_spread_list}) do
       on_built_entity({entity = v})
     end
   end
+  rebind_spread_sources()
+  script_data.needs_repair = true
 end
 
 lib.on_load = function()
   script_data = persistent.creep or script_data
+  script_data.needs_repair = true
 end
 
 lib.on_configuration_changed = function()
-  if persistent.creep then return end
-  persistent.creep = script_data
+  persistent.creep = persistent.creep or script_data
+  script_data = persistent.creep
   for k, surface in pairs (game.surfaces) do
     for k, v in pairs (surface.find_entities_filtered{name = creep_spread_list}) do
       on_built_entity({entity = v})
     end
   end
+  rebind_spread_sources()
+  script_data.needs_repair = true
 end
 
 return lib

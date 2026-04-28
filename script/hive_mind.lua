@@ -94,6 +94,14 @@ local get_default_return_force = function()
   end
 end
 
+local clear_growth_node_inventory = function(entity)
+  if not (entity and entity.valid and entity.name and entity.name:find(names.growth_node_prefix, 1, true) == 1) then return end
+  local inventory = entity.get_inventory(defines.inventory.assembling_machine_input)
+  if inventory and inventory.valid then
+    inventory.clear()
+  end
+end
+
 local deploy_map =
 {
   ["biter-spawner"] = names.deployers.biter_deployer,
@@ -314,6 +322,18 @@ end
 local update_all_local_pollution_labels = function()
   for _, player in pairs(game.connected_players) do
     update_local_pollution_label(player)
+  end
+end
+
+local refresh_hive_player_lights = function()
+  for _, player in pairs(game.connected_players) do
+    if is_hivemind_force(player.force) then
+      add_biter_light(player)
+    else
+      local index = script_data.player_lights[player.index]
+      destroy_render_object(index)
+      script_data.player_lights[player.index] = nil
+    end
   end
 end
 
@@ -540,7 +560,6 @@ local check_hivemind_disband = function()
     lab = true,
     ["mining-drill"] = true
   }
-
   local params = {force = force, type = {"turret", "unit", "unit-spawner", "entity-ghost", "radar", "assembling-machine"}}
   local enemy_force = game.forces.enemy
   for surface_index, surface in pairs(game.surfaces) do
@@ -548,6 +567,9 @@ local check_hivemind_disband = function()
       if entity.valid then
         if map[entity.name] then
           surface.create_entity{name = map[entity.name], position = entity.position, force = entity.force, raise_built = true}
+          entity.destroy()
+        elseif entity.name and entity.name:find(names.growth_node_prefix, 1, true) == 1 then
+          clear_growth_node_inventory(entity)
           entity.destroy()
         elseif destroy_map_type[entity.type] then
           entity.destroy()
@@ -666,6 +688,7 @@ local on_tick = function(event)
     script_data.refresh_gui = false
   end
   if event.tick % 30 == 0 then
+    refresh_hive_player_lights()
     update_all_local_pollution_labels()
   end
 end
@@ -757,6 +780,11 @@ local on_marked_for_deconstruction = function(event)
   local entity = event.entity
   if not (entity and entity.valid) then return end
   if entity.force == force then
+    if entity.name and entity.name:find(names.growth_node_prefix, 1, true) == 1 then
+      clear_growth_node_inventory(entity)
+      entity.destroy({raise_destroy = true})
+      return
+    end
     entity.die()
   end
 end
