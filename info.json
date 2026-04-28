@@ -1,11 +1,11 @@
 {
   "name": "Hive_Mind",
-  "version": "0.4.3",
-  "title": "Hive Mind",
-  "author": "Klonan",
+  "version": "0.5.0",
+  "title": "Hive Mind Reboot",
+  "author": "Klonan, OpenAI Codex",
   "contact": "",
   "homepage": "",
-  "description": "Take control of the biters and lead them to victory against the invading engineers.",
+  "description": "A reboot scaffold for a hive-directed biter logistics and construction mod.",
   "dependencies": ["base >= 2.0.0"],
   "factorio_version": "2.0"
 }

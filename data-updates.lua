@@ -1,1 +1,1 @@
-require("data_updates/data_updates")
+-- Reboot scaffold: no data updates yet.

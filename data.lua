@@ -1,5 +1,4 @@
-names = require("shared")
-
-require("data/entities/entities")
-require("data/technologies/technologies")
-require("data/tiles/creep")
+require("data.prototypes.items")
+require("data.prototypes.entities")
+require("data.prototypes.recipes")
+require("data.prototypes.technologies")

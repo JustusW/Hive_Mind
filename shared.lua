@@ -1,79 +1,53 @@
---Shared data interface between data and script, notably prototype names.
+local shared = {}
 
-local data = {}
+shared.prefix = "hm-"
 
-data.deployers =
+shared.entities =
 {
-  biter_deployer = "biter-deployer",
-  spitter_deployer = "spitter-deployer"
+  hive = "hm-hive",
+  hive_node = "hm-hive-node",
+  hive_lab = "hm-hive-lab"
 }
 
-data.players =
+shared.items =
 {
-  small_biter_player = "small-biter-player",
-  medium_biter_player = "medium-biter-player",
-  big_biter_player = "big-biter-player",
-  behemoth_biter_player = "behemoth-biter-player",
+  hive = "hm-hive",
+  hive_node = "hm-hive-node",
+  hive_lab = "hm-hive-lab",
+  pheromones = "hm-pheromones",
+  pollution = "hm-hidden-pollution",
+  pollution_science_pack = "hm-pollution-science-pack"
 }
 
-data.pollution_proxy = "pollution-proxy"
-
-data.firestarter_gun = "firestarter-gun"
-data.firestarter_ammo = "firestarter-ammo"
-
-data.creep = "creep"
-data.creep_tumor = "creep-tumor"
-data.creep_radius = 10
-data.creep_sticker = "creep-sticker"
-data.creep_landmine = "creep-landmine"
-data.growth_node = "hive-growth-node"
-data.growth_node_prefix = "hive-growth-node-"
-data.growth_progress_item = "hive-growth-progress"
-data.growth_recipe_prefix = "hive-growth-"
-data.growth_cancel_recipe = "hive-growth-cancel"
-data.pollution_lab = "pollution-lab"
-data.pollution_drill = "pollution-drill"
-data.sticker_proxy = "sticker-proxy"
-
-data.required_pollution =
+shared.recipes =
 {
-  [data.deployers.biter_deployer] = 100,
-  [data.deployers.spitter_deployer] = 200,
-  [data.creep_tumor] = 50,
-  [data.pollution_lab] = 150,
-  [data.pollution_drill] = 100,
-  ["small-worm-turret"] = 200,
-  ["medium-worm-turret"] = 400,
-  ["big-worm-turret"] = 800,
-  ["behemoth-worm-turret"] = 1600
+  hive = "hm-hive",
+  hive_node = "hm-hive-node",
+  hive_lab = "hm-hive-lab",
+  pheromones = "hm-pheromones"
 }
 
-data.needs_proxy_type =
+shared.technologies =
 {
-  ["assembling-machine"] = true,
-  ["lab"] = true,
-  ["mining-drill"] = true
+  hive_spawners = "hm-hive-spawners",
+  hive_labs = "hm-hive-labs",
+  worms_small = "hm-worms-small",
+  worms_medium = "hm-worms-medium",
+  worms_big = "hm-worms-big",
+  worms_behemoth = "hm-worms-behemoth"
 }
 
-data.default_unlocked =
+shared.ranges =
 {
-  ["small-biter"] = true,
-  ["small-spitter"] = true,
-  ["small-worm-turret"] = true
+  hive = 1000,
+  hive_node = 500
 }
 
-data.needs_creep =
+shared.creature_roles =
 {
-  ["small-worm-turret"] =true,
-  ["medium-worm-turret"] = true,
-  ["big-worm-turret"] = true,
-  ["behemoth-worm-turret"] = true,
-  [data.creep_tumor] = true,
-  [data.pollution_drill] = true,
-  [data.pollution_lab] = true,
+  attract = "attract",
+  store = "store",
+  consume = "consume"
 }
 
-data.pollution_cost_multiplier = 1
-data.deployer_speed_modifier = 0.25
-
-return data
+return shared
