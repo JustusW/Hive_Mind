@@ -22,6 +22,7 @@ shared.items =
   hive_node = "hm-hive-node",
   hive_lab = "hm-hive-lab",
   pheromones = "hm-pheromones",
+  pheromone_burst = "hm-pheromone-burst",
   pollution = "hm-hidden-pollution",
   pollution_science_pack = "hm-pollution-science-pack"
 }
@@ -31,7 +32,8 @@ shared.recipes =
   hive = "hm-hive",
   hive_node = "hm-hive-node",
   hive_lab = "hm-hive-lab",
-  pheromones = "hm-pheromones"
+  pheromones = "hm-pheromones",
+  use_pheromones = "hm-use-pheromones"
 }
 
 shared.technologies =
@@ -53,13 +55,7 @@ shared.ranges =
 shared.intervals =
 {
   recruit = 120,
-  absorb = 30,
-  pheromones = 60
-}
-
-shared.costs =
-{
-  pheromones_duration_ticks = 60 * 60
+  absorb = 30
 }
 
 shared.build_costs =

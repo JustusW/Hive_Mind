@@ -56,5 +56,23 @@ data:extend(
     {
       {type = "item", name = shared.items.pheromones, amount = 1}
     }
+  },
+  {
+    type = "recipe",
+    name = shared.recipes.use_pheromones,
+    localised_name = {"recipe-name." .. shared.recipes.use_pheromones},
+    enabled = false,
+    energy_required = 0.1,
+    ingredients =
+    {
+      {type = "item", name = shared.items.pheromones, amount = 1}
+    },
+    results =
+    {
+      {type = "item", name = shared.items.pheromone_burst, amount = 1}
+    },
+    allow_decomposition = false,
+    allow_as_intermediate = false,
+    allow_intermediates = false
   }
 })

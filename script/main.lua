@@ -13,7 +13,6 @@ local state =
   hive_roles = {},
   joined_players = {},
   hive_storage = {},
-  pheromones = {},
   hive_nodes = {},
   restore_entities = {}
 }
@@ -110,6 +109,9 @@ local function configure_hive_force(force)
   end
   if force.recipes[shared.recipes.pheromones] then
     force.recipes[shared.recipes.pheromones].enabled = true
+  end
+  if force.recipes[shared.recipes.use_pheromones] then
+    force.recipes[shared.recipes.use_pheromones].enabled = true
   end
 
   for _, technology in pairs(force.technologies) do
@@ -412,24 +414,6 @@ local function get_primary_player_hive(player_index)
   end
 end
 
-local function has_active_pheromones(player)
-  local current = get_state()
-  local pheromones = current.pheromones[player.index]
-  if not pheromones then return false end
-  if pheromones.expire_tick <= game.tick then
-    current.pheromones[player.index] = nil
-    return false
-  end
-
-  local inventory = player.get_main_inventory()
-  if not inventory or inventory.get_item_count(shared.items.pheromones) <= 0 then
-    current.pheromones[player.index] = nil
-    return false
-  end
-
-  return true
-end
-
 local function get_unit_pollution_cost(prototype)
   if not prototype then return 0 end
 
@@ -482,13 +466,29 @@ end
 
 local function get_unit_recruit_target(player)
   if not (player and player.valid) then return end
-  if has_active_pheromones(player) then
-    return {type = "player", entity = player, player = player}
-  end
 
   local hive = get_primary_player_hive(player.index)
   if hive then
     return {type = "hive", entity = hive, player = player}
+  end
+end
+
+local function command_units_to_player(player)
+  if not (player and player.valid and player.surface) then return end
+  local enemy_force = get_enemy_force()
+  local hive_force = get_hive_force()
+  local units = player.surface.find_entities_filtered
+  {
+    position = player.position,
+    radius = shared.ranges.hive,
+    type = "unit"
+  }
+
+  local target = {type = "player", entity = player, player = player}
+  for _, unit in pairs(units) do
+    if unit.valid and (unit.force == enemy_force or unit.force == hive_force) and is_hive_creature_for_role(unit, shared.creature_roles.attract) then
+      command_unit_to_target(unit, target)
+    end
   end
 end
 
@@ -752,23 +752,6 @@ local function tick_hive_absorption()
   end
 end
 
-local function expire_pheromones()
-  local current = get_state()
-  for player_index, pheromones in pairs(current.pheromones) do
-    if pheromones.expire_tick <= game.tick then
-      local player = game.get_player(player_index)
-        if player and player.valid then
-          local inventory = player.get_main_inventory()
-          if inventory then
-            inventory.remove{name = shared.items.pheromones, count = inventory.get_item_count(shared.items.pheromones)}
-          end
-        player.print({"message.hm-pheromones-faded"})
-      end
-      current.pheromones[player_index] = nil
-    end
-  end
-end
-
 local function fulfill_ghost_requests()
   local hive_force = get_hive_force()
   for _, hive in pairs(get_all_service_hives()) do
@@ -901,18 +884,22 @@ local function on_player_crafted_item(event)
   local player = game.get_player(event.player_index)
   if not is_hive_player(player) then return end
   local recipe_name = event.recipe.name
+  if recipe_name == shared.recipes.use_pheromones then
+    local inventory = player.get_main_inventory()
+    if inventory then
+      inventory.remove{name = shared.items.pheromone_burst, count = inventory.get_item_count(shared.items.pheromone_burst)}
+    end
+    command_units_to_player(player)
+    player.print({"message.hm-pheromones-used"})
+    return
+  end
   if recipe_name ~= shared.recipes.pheromones and recipe_name ~= shared.recipes.hive then return end
 
   if recipe_name == shared.recipes.pheromones then
-    local current = get_state()
-    current.pheromones[player.index] =
-    {
-      expire_tick = game.tick + shared.costs.pheromones_duration_ticks
-    }
     local inventory = player.get_main_inventory()
     local stack = inventory and inventory.find_item_stack(shared.items.pheromones)
     if stack and stack.valid_for_read then
-      stack.spoil_tick = game.tick + shared.costs.pheromones_duration_ticks
+      stack.spoil_tick = nil
     end
   end
 end
@@ -967,9 +954,6 @@ local function on_gui_opened(event)
 end
 
 local function on_tick(event)
-  if event.tick % shared.intervals.pheromones == 0 then
-    expire_pheromones()
-  end
   restore_mined_entities()
   if event.tick % shared.intervals.recruit == 0 then
     recruit_units_to_hive_targets()

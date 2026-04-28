@@ -61,6 +61,15 @@ local prototypes =
   },
   {
     type = "item",
+    name = shared.items.pheromone_burst,
+    icon = automation_science.icon,
+    icon_size = automation_science.icon_size,
+    hidden = true,
+    hidden_in_factoriopedia = true,
+    stack_size = 1
+  },
+  {
+    type = "item",
     name = shared.items.pollution,
     icon = automation_science.icon,
     icon_size = automation_science.icon_size,
