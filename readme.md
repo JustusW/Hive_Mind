@@ -1,4 +1,4 @@
-# Hive Mind Reboot
+# Hive Mind Reloaded
 
 This repository now has two clearly separated parts:
 

@@ -8,8 +8,17 @@ local state =
   hive_roles = {}
 }
 
+local function clone_table(value)
+  if type(value) ~= "table" then return value end
+  local result = {}
+  for k, v in pairs(value) do
+    result[k] = clone_table(v)
+  end
+  return result
+end
+
 local function get_state()
-  persistent.hive_reboot = persistent.hive_reboot or table.deepcopy(state)
+  persistent.hive_reboot = persistent.hive_reboot or clone_table(state)
   return persistent.hive_reboot
 end
 

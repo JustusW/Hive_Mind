@@ -25,9 +25,9 @@ hive_node.energy_source =
 {
   type = "void"
 }
-hive_node.energy_usage = "1W"
-hive_node.recharge_minimum = "0J"
-hive_node.charging_energy = "1W"
+hive_node.energy_usage = "1MW"
+hive_node.recharge_minimum = "1MJ"
+hive_node.charging_energy = "1MW"
 
 local hive_lab = table.deepcopy(data.raw["lab"]["lab"])
 hive_lab.name = shared.entities.hive_lab

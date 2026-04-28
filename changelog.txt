@@ -1,5 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 0.5.0
 Date: 2026-04-28
+  Renamed the rebooted mod to Hive Mind Reloaded.
   Rebooted the mod into a clean scaffold.
   Archived the legacy 2.0 port implementation under legacy/hive-mind-2.0-port-reference.
