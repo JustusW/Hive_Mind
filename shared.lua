@@ -1,6 +1,11 @@
 local shared = {}
 
 shared.prefix = "hm-"
+shared.force_name = "hivemind"
+shared.gui =
+{
+  join_button = "hm-join-hive-button"
+}
 
 shared.entities =
 {

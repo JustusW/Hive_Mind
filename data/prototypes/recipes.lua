@@ -6,7 +6,7 @@ data:extend(
     type = "recipe",
     name = shared.recipes.hive,
     localised_name = {"recipe-name." .. shared.recipes.hive},
-    enabled = true,
+    enabled = false,
     energy_required = 5,
     ingredients =
     {
@@ -55,7 +55,7 @@ data:extend(
     type = "recipe",
     name = shared.recipes.pheromones,
     localised_name = {"recipe-name." .. shared.recipes.pheromones},
-    enabled = true,
+    enabled = false,
     energy_required = 60,
     ingredients =
     {
