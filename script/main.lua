@@ -2,6 +2,10 @@ local shared = require("shared")
 local mod_gui = require("mod-gui")
 
 local persistent = storage or global
+local runtime =
+{
+  player_markers = {}
+}
 
 local state =
 {
@@ -141,20 +145,32 @@ local function clear_player_inventory(player)
   end
 end
 
-local function create_hive_character(player, surface, position)
-  local spawn_position = surface.find_non_colliding_position(shared.entities.director_body, position, 8, 0.25) or position
-  local character = surface.create_entity
+local function destroy_player_marker(player_index)
+  local marker_id = runtime.player_markers[player_index]
+  if not marker_id then return end
+  runtime.player_markers[player_index] = nil
+  pcall(function()
+    if rendering.is_valid(marker_id) then
+      rendering.destroy(marker_id)
+    end
+  end)
+end
+
+local function update_player_marker(player)
+  destroy_player_marker(player.index)
+  if not is_hive_player(player) then return end
+  if not (player.character and player.character.valid) then return end
+
+  runtime.player_markers[player.index] = rendering.draw_sprite
   {
-    name = shared.entities.director_body,
-    position = spawn_position,
-    force = player.force
+    sprite = "fluid/steam",
+    target = player.character,
+    target_offset = {0, -1.5},
+    surface = player.surface,
+    x_scale = 0.75,
+    y_scale = 0.75,
+    render_layer = "light-effect"
   }
-  player.character = character
-  if player.character and player.character.valid then
-    player.character.destructible = false
-    player.character.operable = false
-  end
-  player.color = {r = 1, g = 1, b = 1, a = 0}
 end
 
 local function update_join_button(player)
@@ -183,26 +199,26 @@ end
 local function update_all_join_buttons()
   for _, player in pairs(game.players) do
     update_join_button(player)
+    update_player_marker(player)
   end
 end
 
 local function apply_hive_director_state(player)
   local force = get_hive_force()
   configure_hive_force(force)
-  local surface = player.surface
-  local position = player.position
   player.force = force
   player.cheat_mode = false
+  player.permission_group = get_hive_permission_group()
 
   if player.character and player.character.valid then
     clear_character_inventory(player)
-    player.character.destroy()
+    player.character.destructible = false
+    player.character.operable = false
+    player.character.color = {r = 1, g = 1, b = 1, a = 0}
   end
-
-  create_hive_character(player, surface, position)
-  player.permission_group = get_hive_permission_group()
   clear_player_inventory(player)
   player.clear_cursor()
+  update_player_marker(player)
   player.print({"gui.hm-hive-joined"})
 end
 
@@ -320,6 +336,47 @@ local function get_hive_storage(entity)
   local storage = current.hive_storage[entity.unit_number]
   storage.entity = entity
   return storage
+end
+
+local function get_hive_inventory(entity)
+  if not (entity and entity.valid) then return end
+  return entity.get_inventory(defines.inventory.chest)
+end
+
+local function add_creature_to_hive_storage(storage, unit_name, count)
+  local amount = count or 1
+  local entity = storage and storage.entity
+  local inventory = get_hive_inventory(entity)
+  if not inventory then
+    return 0
+  end
+
+  local item_name = shared.creature_item_name(unit_name)
+  local inserted = inventory.insert{name = item_name, count = amount}
+  if inserted > 0 then
+    storage.creatures[unit_name] = (storage.creatures[unit_name] or 0) + inserted
+  end
+  return inserted
+end
+
+local function remove_creature_from_hive_storage(storage, unit_name, count)
+  local amount = count or 1
+  local available = storage.creatures[unit_name] or 0
+  if available <= 0 then
+    return 0
+  end
+
+  local removed = math.min(amount, available)
+  local inventory = get_hive_inventory(storage.entity)
+  if inventory then
+    inventory.remove{name = shared.creature_item_name(unit_name), count = removed}
+  end
+
+  storage.creatures[unit_name] = available - removed
+  if storage.creatures[unit_name] <= 0 then
+    storage.creatures[unit_name] = nil
+  end
+  return removed
 end
 
 local function get_primary_player_hive(player_index)
@@ -442,13 +499,11 @@ local function consume_hive_pollution(storage, amount)
         local prototype = game.entity_prototypes[unit_name]
         local pollution = get_unit_pollution_cost(prototype)
         if pollution > 0 then
-          storage.creatures[unit_name] = count - 1
-          if storage.creatures[unit_name] <= 0 then
-            storage.creatures[unit_name] = nil
+          if remove_creature_from_hive_storage(storage, unit_name, 1) > 0 then
+            storage.pollution = storage.pollution + pollution
+            converted = true
+            break
           end
-          storage.pollution = storage.pollution + pollution
-          converted = true
-          break
         end
       end
     end
@@ -618,9 +673,9 @@ local function absorb_units_into_hive(entity)
 
   for _, unit in pairs(nearby_units) do
     if unit.valid and is_hive_creature_for_role(unit, shared.creature_roles.store) then
-      local count = storage.creatures[unit.name] or 0
-      storage.creatures[unit.name] = count + 1
-      unit.destroy({raise_destroy = true})
+      if add_creature_to_hive_storage(storage, unit.name, 1) > 0 then
+        unit.destroy({raise_destroy = true})
+      end
     end
   end
 end
@@ -645,6 +700,12 @@ local function release_hive_contents(entity)
       end
     end
   end
+
+  local inventory = get_hive_inventory(entity)
+  if inventory then
+    inventory.clear()
+  end
+  storage.creatures = {}
 end
 
 local function tick_hive_absorption()

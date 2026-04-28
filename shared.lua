@@ -3,6 +3,7 @@ local shared = {}
 shared.prefix = "hm-"
 shared.force_name = "hivemind"
 shared.permission_group = "hm-hive-director"
+shared.creature_item_prefix = "hm-creature-"
 shared.gui =
 {
   join_button = "hm-join-hive-button"
@@ -12,8 +13,7 @@ shared.entities =
 {
   hive = "hm-hive",
   hive_node = "hm-hive-node",
-  hive_lab = "hm-hive-lab",
-  director_body = "hm-hive-director-body"
+  hive_lab = "hm-hive-lab"
 }
 
 shared.items =
@@ -79,5 +79,9 @@ shared.creature_roles =
   store = "store",
   consume = "consume"
 }
+
+function shared.creature_item_name(unit_name)
+  return shared.creature_item_prefix .. unit_name
+end
 
 return shared

@@ -18,7 +18,7 @@ pollution_science.icons =
   }
 }
 
-data:extend(
+local prototypes =
 {
   {
     type = "item",
@@ -69,4 +69,27 @@ data:extend(
     stack_size = 2147483647
   },
   pollution_science
-})
+}
+
+for unit_name, unit in pairs(data.raw.unit) do
+  local creature_item =
+  {
+    type = "item",
+    name = shared.creature_item_name(unit_name),
+    subgroup = "intermediate-product",
+    order = "z[hive]-u[" .. unit_name .. "]",
+    stack_size = 100
+  }
+
+  if unit.icons then
+    creature_item.icons = table.deepcopy(unit.icons)
+    creature_item.icon_size = unit.icon_size or (unit.icons[1] and unit.icons[1].icon_size) or 64
+  else
+    creature_item.icon = unit.icon
+    creature_item.icon_size = unit.icon_size
+  end
+
+  prototypes[#prototypes + 1] = creature_item
+end
+
+data:extend(prototypes)
