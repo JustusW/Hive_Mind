@@ -3,8 +3,8 @@
 --   joined_players       [player_index] = true
 --   rejected_players     [player_index] = true   (permanently opted out)
 --   hives_by_player      [player_index][unit_number] = {entity}
---   hive_nodes           [unit_number]               = {entity}
---   hive_storage         [unit_number]               = {entity, chest}
+--   hive_nodes           [unit_number]               = {entity, creep_layer, creep_step}
+--   hive_storage         [unit_number]               = {entity, chest, creep_layer, creep_step}
 --   pollution_generators [unit_number]               = entity
 --   hive_roles           [entity_name][role]         = true
 --
