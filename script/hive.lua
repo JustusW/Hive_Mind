@@ -11,14 +11,14 @@ local M = {}
 
 -- ── Storage chest ─────────────────────────────────────────────────────────────
 
--- Get (or create) the storage record for `entity`. The record carries the
--- chest reference and the creep-front cursor used by creep growth.
+-- Get (or create) the storage record for `entity`. The record holds the
+-- hidden chest reference; creep growth no longer needs per-record state.
 function M.get_storage(entity)
   if not (entity and entity.valid and entity.unit_number) then return nil end
   local s = State.get()
   local id = entity.unit_number
   if not s.hive_storage[id] then
-    s.hive_storage[id] = {entity = entity, creep_front = 1, chest = nil}
+    s.hive_storage[id] = {entity = entity, chest = nil}
   end
   local record = s.hive_storage[id]
   record.entity = entity
@@ -85,7 +85,7 @@ end
 function M.track_node(entity)
   if not (entity and entity.valid and entity.unit_number) then return end
   local s = State.get()
-  s.hive_nodes[entity.unit_number] = {entity = entity, creep_front = 1}
+  s.hive_nodes[entity.unit_number] = {entity = entity}
 end
 
 function M.untrack_node(entity)

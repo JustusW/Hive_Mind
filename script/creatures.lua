@@ -96,6 +96,19 @@ end
 
 -- ── Recruitment ──────────────────────────────────────────────────────────────
 
+-- Effective recruitment radius for `force`, scaled by completed levels of
+-- the infinite hm-attraction-reach tech. `tech.level` is the next level to
+-- research, so completed levels = level - 1 (clamped at zero).
+local function recruit_radius(force)
+  local base = shared.ranges.recruit
+  if not (force and force.valid) then return base end
+  local tech = force.technologies[shared.technologies.attraction_reach]
+  if not tech then return base end
+  local completed = tech.level - 1
+  if completed < 0 then completed = 0 end
+  return base * (1 + completed * shared.attraction_reach_step)
+end
+
 -- Long-range scan from each player's primary hive: reassign vanilla biters
 -- to the hive force and command them toward the hive. If the player carries
 -- a pheromone item they become the recruitment target instead.
@@ -103,6 +116,7 @@ function M.tick_recruitment()
   local s            = State.get()
   local enemy_force  = Force.get_enemy()
   local hive_force   = Force.get_hive()
+  local radius       = recruit_radius(hive_force)
 
   for player_index in pairs(s.joined_players) do
     local player = game.get_player(player_index)
@@ -116,7 +130,7 @@ function M.tick_recruitment()
     if inv then has_pheromones = inv.get_item_count(shared.items.pheromones) > 0 end
 
     local units = hive.surface.find_entities_filtered{
-      position = hive.position, radius = shared.ranges.recruit, type = "unit"
+      position = hive.position, radius = radius, type = "unit"
     }
     for _, unit in pairs(units) do
       if unit.valid

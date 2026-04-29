@@ -70,4 +70,33 @@ for tier_index, tier in pairs(shared.worm_tiers) do
   prev_tier_tech = w.tech
 end
 
+-- Infinite tech: each level adds +10% to the hive's attraction radius. The
+-- effect is applied at runtime in script/creatures.lua; we use a "nothing"
+-- effect here purely to render a description in the research GUI.
+techs[#techs + 1] =
+{
+  type = "technology",
+  name = shared.technologies.attraction_reach,
+  localised_name = {"technology-name." .. shared.technologies.attraction_reach},
+  localised_description = {"technology-description." .. shared.technologies.attraction_reach},
+  icon = "__base__/graphics/technology/research-speed.png",
+  icon_size = 256,
+  order = "z[hive]-d[attraction-reach]",
+  max_level = "infinite",
+  prerequisites = {shared.technologies.hive_labs},
+  effects =
+  {
+    {
+      type = "nothing",
+      effect_description = {"effect-description." .. shared.technologies.attraction_reach}
+    }
+  },
+  unit =
+  {
+    count_formula = "2^(L-1)*100",
+    time = 30,
+    ingredients = {{shared.items.pollution_science_pack, 1}}
+  }
+}
+
 data:extend(techs)

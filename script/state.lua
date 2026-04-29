@@ -2,8 +2,8 @@
 --
 --   joined_players       [player_index] = true
 --   hives_by_player      [player_index][unit_number] = {entity}
---   hive_nodes           [unit_number]               = {entity, creep_front}
---   hive_storage         [unit_number]               = {entity, creep_front, chest}
+--   hive_nodes           [unit_number]               = {entity}
+--   hive_storage         [unit_number]               = {entity, chest}
 --   pollution_generators [unit_number]               = entity
 --   hive_roles           [entity_name][role]         = true
 --

@@ -61,8 +61,13 @@ shared.technologies =
   worms_small = "hm-worms-small",
   worms_medium = "hm-worms-medium",
   worms_big = "hm-worms-big",
-  worms_behemoth = "hm-worms-behemoth"
+  worms_behemoth = "hm-worms-behemoth",
+  attraction_reach = "hm-attraction-reach"
 }
+
+-- Infinite attraction-reach tech: each level adds this fraction to the
+-- recruitment radius, applied additively (level N => radius * (1 + N * step)).
+shared.attraction_reach_step = 0.1
 
 -- Helpers + per-tier name lookups for worms.
 shared.worm = {}
@@ -80,11 +85,12 @@ end
 -- Construction radius and recruitment radius are now distinct concepts.
 -- `hive` and `hive_node` are construction / visibility radii (used by roboport
 -- prototype + chart_area). `recruit` is the long-range scan for absorbable units.
+-- All values are radii (half-extents). A radius of 50 gives a 100x100 box.
 shared.ranges =
 {
   hive      = 50,    -- 100x100 build/visibility box
   hive_node = 25,    -- 50x50 build/visibility box
-  recruit   = 1000
+  recruit   = 50     -- 100x100 base attraction box; scaled by hm-attraction-reach
 }
 
 shared.intervals =
@@ -165,19 +171,13 @@ shared.science =
   pollution_per_pack = 25
 }
 
-shared.creep_tile_prefix = "hm-creep"
-shared.creep_tile_count = 4
-shared.creep_tiles = {}
-for i = 1, shared.creep_tile_count do
-  shared.creep_tiles[i] = shared.creep_tile_prefix .. "-" .. i
-end
--- Backward-compat: code that asks for `creep_tile` still gets a valid tile name.
-shared.creep_tile = shared.creep_tiles[1]
+shared.creep_tile = "hm-creep"
 
+-- Creep matches build/visibility: hive 100x100 box, hive_node 50x50.
 shared.creep_radius =
 {
-  hive      = 100,    -- creep range still wide; build range is smaller (see ranges)
-  hive_node = 50
+  hive      = 50,
+  hive_node = 25
 }
 
 -- Placement attempts per creep call (every shared.intervals.creep ticks).
@@ -206,18 +206,9 @@ function shared.creature_unit_name(item_name)
   return item_name:sub(#shared.creature_item_prefix + 1)
 end
 
--- True if the given tile name is one of the mod's creep variants.
+-- True if the given tile name is the mod's creep tile.
 function shared.is_creep_tile(tile_name)
-  for i = 1, shared.creep_tile_count do
-    if tile_name == shared.creep_tiles[i] then return true end
-  end
-  return false
-end
-
--- Pick a random creep variant name. Caller passes a deterministic random source.
-function shared.random_creep_tile(rng)
-  local idx = rng and rng(1, shared.creep_tile_count) or math.random(1, shared.creep_tile_count)
-  return shared.creep_tiles[idx]
+  return tile_name == shared.creep_tile
 end
 
 return shared
