@@ -143,6 +143,21 @@ for _, tier in pairs(shared.worm_tiers) do
     {item = shared.worm[tier].item, recipe = shared.worm[tier].recipe}
 end
 
+-- Count how many of `item_name` the player is currently holding in either
+-- their main inventory or the cursor. Auto-refund-on-place puts the item
+-- into the cursor, so checking only the main inventory makes the watchdog
+-- think the player has none and re-issue another copy on every tick.
+local function holding_count(player, item_name)
+  local count = 0
+  local cursor = player.cursor_stack
+  if cursor and cursor.valid_for_read and cursor.name == item_name then
+    count = count + cursor.count
+  end
+  local inv = player.get_main_inventory()
+  if inv then count = count + inv.get_item_count(item_name) end
+  return count
+end
+
 local function refill_loadout(player)
   if not (player and player.valid and M.is_player(player)) then return end
   local inv = player.get_main_inventory()
@@ -153,7 +168,7 @@ local function refill_loadout(player)
   for _, entry in ipairs(buildable_items) do
     local recipe = force.recipes[entry.recipe]
     if recipe and recipe.enabled then
-      if inv.get_item_count(entry.item) < 1 then
+      if holding_count(player, entry.item) < 1 then
         inv.insert{name = entry.item, count = 1}
       end
       quickbar[#quickbar + 1] = entry.item

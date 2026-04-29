@@ -29,16 +29,31 @@ local M = {}
 
 local OBSTRUCTION_TYPES = {"tree", "cliff", "simple-entity"}
 
+-- Detects obstructing terrain in the placement area AND, as a side effect,
+-- cancels any deconstruction orders the engine queued for those obstructions
+-- on the hive force. Without the cancellation, refusing the placement still
+-- leaves the auto-decon mark behind, so a hive worker dispatches to chop
+-- the tree we just declined to build over and then hovers indefinitely
+-- because the resulting wood has nowhere to land (hive storage is a passive-
+-- provider chest and won't accept bot inserts).
 local function placement_obstructed(entity)
   if not (entity and entity.valid) then return false end
   local found = entity.surface.find_entities_filtered{
     area = entity.bounding_box,
     type = OBSTRUCTION_TYPES
   }
+  local obstructed = false
+  local hive_force = Force.get_hive()
   for _, e in pairs(found) do
-    if e ~= entity and e.valid then return true end
+    if e ~= entity and e.valid then
+      obstructed = true
+      if e.to_be_deconstructed() then
+        if hive_force then e.cancel_deconstruction(hive_force) end
+        e.cancel_deconstruction(e.force)
+      end
+    end
   end
-  return false
+  return obstructed
 end
 
 -- Map the entity actually placed by the engine to the player-facing item the
