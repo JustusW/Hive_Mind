@@ -21,28 +21,46 @@ function M.is_player(player)
   return State.get().joined_players[player.index] == true
 end
 
--- ── Join button ──────────────────────────────────────────────────────────────
-
-function M.update_join_button(player)
-  if not (player and player.valid) then return end
-  local flow = mod_gui.get_button_flow(player)
-  local existing = flow[shared.gui.join_button]
-  if M.is_player(player) then
-    if existing then existing.destroy() end
-    return
-  end
-  if not existing then
-    flow.add{
-      type    = "button",
-      name    = shared.gui.join_button,
-      caption = {"gui.hm-join-hive"},
-      style   = mod_gui.button_style
-    }
-  end
+function M.is_rejected(player)
+  if not (player and player.valid) then return false end
+  return State.get().rejected_players[player.index] == true
 end
 
-function M.update_all_join_buttons()
-  for _, player in pairs(game.players) do M.update_join_button(player) end
+-- ── Hive buttons ─────────────────────────────────────────────────────────────
+--
+-- Two sibling buttons live in the mod-gui flow: "Join the Hive" and "Reject
+-- the Hive". Both vanish for good once the player either joins or rejects;
+-- rejection is persisted in `rejected_players` and survives save/load.
+
+local function ensure_button(flow, name, caption)
+  if flow[name] then return end
+  flow.add{
+    type    = "button",
+    name    = name,
+    caption = caption,
+    style   = mod_gui.button_style
+  }
+end
+
+local function destroy_button(flow, name)
+  local existing = flow[name]
+  if existing then existing.destroy() end
+end
+
+function M.update_hive_buttons(player)
+  if not (player and player.valid) then return end
+  local flow = mod_gui.get_button_flow(player)
+  if M.is_player(player) or M.is_rejected(player) then
+    destroy_button(flow, shared.gui.join_button)
+    destroy_button(flow, shared.gui.reject_button)
+    return
+  end
+  ensure_button(flow, shared.gui.join_button,   {"gui.hm-join-hive"})
+  ensure_button(flow, shared.gui.reject_button, {"gui.hm-reject-hive"})
+end
+
+function M.update_all_hive_buttons()
+  for _, player in pairs(game.players) do M.update_hive_buttons(player) end
 end
 
 -- ── Director state ───────────────────────────────────────────────────────────
@@ -67,8 +85,19 @@ function M.join(player)
   if M.is_player(player) then return end
   State.get().joined_players[player.index] = true
   M.apply(player)
-  M.update_join_button(player)
+  M.update_hive_buttons(player)
   player.print({"gui.hm-hive-joined"})
+end
+
+-- Mark `player` as having permanently refused the hive. Idempotent. Hides the
+-- buttons and prints the obituary line. The player keeps their normal body
+-- and force; the only effect is that the GUI never offers them the hive again.
+function M.reject(player)
+  if not (player and player.valid) then return end
+  if M.is_player(player) or M.is_rejected(player) then return end
+  State.get().rejected_players[player.index] = true
+  M.update_hive_buttons(player)
+  player.print({"gui.hm-hive-rejected"})
 end
 
 -- ── Inventory lockdown ───────────────────────────────────────────────────────
@@ -153,7 +182,7 @@ end
 
 function M.on_player_created(event)
   local player = game.get_player(event.player_index)
-  if player then M.update_join_button(player) end
+  if player then M.update_hive_buttons(player) end
 end
 
 function M.on_player_respawned(event)
@@ -165,9 +194,15 @@ end
 -- ── GUI events ───────────────────────────────────────────────────────────────
 
 function M.on_gui_click(event)
-  if event.element.name ~= shared.gui.join_button then return end
+  local name = event.element.name
+  if name ~= shared.gui.join_button and name ~= shared.gui.reject_button then return end
   local player = game.get_player(event.player_index)
-  if player then M.join(player) end
+  if not player then return end
+  if name == shared.gui.join_button then
+    M.join(player)
+  else
+    M.reject(player)
+  end
 end
 
 local allowed_entity_gui =

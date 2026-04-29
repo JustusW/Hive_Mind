@@ -42,14 +42,14 @@ script.on_init(function()
   State.get()
   Force.configure(Force.get_hive())
   Force.get_permission_group()
-  Director.update_all_join_buttons()
+  Director.update_all_hive_buttons()
 end)
 
 script.on_configuration_changed(function()
   local s = State.get()
   Force.configure(Force.get_hive())
   Force.get_permission_group()
-  Director.update_all_join_buttons()
+  Director.update_all_hive_buttons()
 
   -- Snap any joined player back to the god controller in case a config change
   -- knocked them off it.

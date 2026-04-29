@@ -6,7 +6,8 @@ shared.creature_item_prefix = "hm-creature-"
 
 shared.gui =
 {
-  join_button = "hm-join-hive-button"
+  join_button   = "hm-join-hive-button",
+  reject_button = "hm-reject-hive-button"
 }
 
 -- Worm tier list, ordered small -> behemoth. Each tier produces a player item,
