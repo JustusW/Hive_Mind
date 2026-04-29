@@ -6,6 +6,15 @@ local biter_proto    = data.raw["unit"]["small-biter"]
 local spawner_proto  = data.raw["unit-spawner"]["biter-spawner"]
 local behemoth_proto = data.raw["unit"]["behemoth-biter"]
 
+-- Localised description for a placeable hive item that surfaces the build
+-- cost in the tooltip. `cost` may be 0 (free) or a positive number; nil
+-- means we don't know the cost (skip annotation).
+local function build_cost_description(cost)
+  if cost == nil then return nil end
+  if cost <= 0 then return {"item-description.hm-build-cost-free"} end
+  return {"item-description.hm-build-cost", tostring(cost)}
+end
+
 -- Worm-icon source per tier; falls back to small-worm-turret prototype if a
 -- specific tier isn't loaded for any reason.
 local function worm_icon_proto(tier)
@@ -20,6 +29,7 @@ local prototypes =
     type = "item",
     name = shared.items.hive,
     localised_name = {"item-name." .. shared.items.hive},
+    localised_description = build_cost_description(0),
     icons = {{icon = spawner_proto.icon, icon_size = spawner_proto.icon_size,
               tint = {r=0.90, g=0.35, b=0.05, a=1}}},
     subgroup = "defensive-structure",
@@ -31,6 +41,7 @@ local prototypes =
     type = "item",
     name = shared.items.hive_node,
     localised_name = {"item-name." .. shared.items.hive_node},
+    localised_description = build_cost_description(shared.build_costs[shared.entities.hive_node]),
     icons = {{icon = spawner_proto.icon, icon_size = spawner_proto.icon_size,
               tint = {r=0.10, g=0.75, b=0.45, a=1}}},
     subgroup = "defensive-structure",
@@ -42,6 +53,7 @@ local prototypes =
     type = "item",
     name = shared.items.hive_lab,
     localised_name = {"item-name." .. shared.items.hive_lab},
+    localised_description = build_cost_description(shared.build_costs[shared.entities.hive_lab]),
     icons = {{icon = spawner_proto.icon, icon_size = spawner_proto.icon_size,
               tint = {r=0.55, g=0.10, b=0.85, a=1}}},
     subgroup = "production-machine",
@@ -66,6 +78,7 @@ local prototypes =
     type = "item",
     name = shared.items.hive_spawner,
     localised_name = {"item-name." .. shared.items.hive_spawner},
+    localised_description = build_cost_description(shared.build_costs[shared.entities.spawner_ghost]),
     icons = {{icon = spawner_proto.icon, icon_size = spawner_proto.icon_size,
               tint = {r=0.90, g=0.35, b=0.05, a=1}}},
     subgroup = "defensive-structure",
@@ -110,6 +123,7 @@ for tier_index, tier in pairs(shared.worm_tiers) do
     type = "item",
     name = w.item,
     localised_name = {"item-name." .. w.item},
+    localised_description = build_cost_description(shared.build_costs[w.ghost]),
     icons = {{icon = proto.icon, icon_size = proto.icon_size,
               tint = {r=0.55, g=0.10, b=0.85, a=1}}},
     subgroup = "defensive-structure",

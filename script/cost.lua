@@ -108,10 +108,38 @@ end
 
 -- ── Charge / consume ─────────────────────────────────────────────────────────
 
+-- Total pollution this network could produce: existing pollution items plus
+-- the value of every stored creature, summed across every hive's chest.
+-- Read-only; safe to call before deciding whether to spend.
+function M.pollution_capacity(hives)
+  local total = 0
+  for _, hive in pairs(hives) do
+    local chest = Hive.get_chest(hive)
+    if chest then
+      local inv = chest.get_inventory(defines.inventory.chest)
+      if inv then
+        total = total + inv.get_item_count(shared.items.pollution)
+        for i = 1, #inv do
+          local stack = inv[i]
+          if stack and stack.valid_for_read then
+            local unit_name = shared.creature_unit_name(stack.name)
+            if unit_name then
+              total = total + stack.count * M.unit_pollution_value(unit_name)
+            end
+          end
+        end
+      end
+    end
+  end
+  return total
+end
+
 -- Charge `amount` pollution from the network covering `position`.
--- Returns:  true                    on success
---           false, "no_hive"        if no hive is in range
---           false, "insufficient"   if hives are in range but pool is too low
+-- Returns:  true                                     on success
+--           false, "no_hive"                         if no hive is in range
+--           false, "insufficient", {need, have}      if pool is too low (no
+--                                                    state mutation in this
+--                                                    case — biters stay biters)
 function M.consume(surface, position, amount)
   if amount <= 0 then return true end
 
@@ -119,8 +147,15 @@ function M.consume(surface, position, amount)
   if not hives then return false, "no_hive" end
 
   local need  = math.ceil(amount)
-  local total = M.convert_creatures(hives, need)
-  if total < need then return false, "insufficient" end
+  local have  = M.pollution_capacity(hives)
+  if have < need then
+    return false, "insufficient", {need = need, have = have}
+  end
+
+  -- Capacity check passed; only now do we mutate state. convert_creatures
+  -- only consumes the minimum needed (it stops once the running total covers
+  -- `need`), so no extra biters get burned.
+  M.convert_creatures(hives, need)
 
   local remaining = need
   for _, hive in pairs(hives) do
@@ -159,15 +194,20 @@ function M.refund_player_item(player_index, item_name, count)
   inv.insert{name = item_name, count = count or 1}
 end
 
--- Print the right localised message for a charge failure.
-function M.print_charge_failure(player_index, reason)
+-- Print the right localised message for a charge failure. `info`, when
+-- provided, carries `need` and `have` so the player sees the actual gap
+-- (e.g. "needs 100 pollution, only has 30") instead of a generic refusal.
+function M.print_charge_failure(player_index, reason, info)
   if not player_index then return end
   local p = game.get_player(player_index)
   if not (p and p.valid) then return end
   if reason == "no_hive" then
     p.print({"message.hm-no-hive-in-range"})
+  elseif info and info.need and info.have then
+    p.print({"message.hm-insufficient-resources",
+             tostring(info.need), tostring(info.have)})
   else
-    p.print({"message.hm-insufficient-resources"})
+    p.print({"message.hm-insufficient-resources-generic"})
   end
 end
 

@@ -81,9 +81,9 @@ local function fulfill_ghost(ghost, player_index)
   end
 
   local cost = Cost.build_cost(ghost_name)
-  local ok, reason = Cost.consume(ghost.surface, ghost.position, cost)
+  local ok, reason, info = Cost.consume(ghost.surface, ghost.position, cost)
   if not ok then
-    Cost.print_charge_failure(player_index, reason)
+    Cost.print_charge_failure(player_index, reason, info)
     return
   end
 
@@ -107,9 +107,9 @@ end
 -- the localised message, refund the player's item, destroy `entity`, return
 -- false. On success: return true.
 local function charge_or_refund(entity, player_index, refund_item_name)
-  local ok, reason = Cost.charge_build(entity.surface, entity.position, entity.name)
+  local ok, reason, info = Cost.charge_build(entity.surface, entity.position, entity.name)
   if ok then return true end
-  Cost.print_charge_failure(player_index, reason)
+  Cost.print_charge_failure(player_index, reason, info)
   Cost.refund_player_item(player_index, refund_item_name)
   entity.destroy()
   return false
