@@ -15,7 +15,9 @@ Applied at the start and end of every prompt.
 - Prefer dedicated tools (Read, Write, Edit, Glob, Grep, etc.) over sandbox Linux/bash commands. Reserve bash for things only the shell can do (running scripts, multi-step pipelines, package management, etc.).
 
 ## Cowork runner handoffs
-- When I queue a command for the user to approve in their cowork runner (or any other action they have to perform on their host), I must call `AskUserQuestion` to confirm they have approved/executed it before continuing. Don't poll files or assume execution has happened.
+- The runner auto-executes any request I drop in `.cowork/inbox/`. There is no y/N prompt on the host side.
+- I MUST call `AskUserQuestion` to get explicit approval BEFORE writing the inbox file. Show the literal command I'm about to send so the user can object first.
+- After the runner has run, call `AskUserQuestion` again to confirm completion before reading `.cowork/outbox/<id>.{log,exit}`. Don't poll or assume.
 
 ## Maintenance
 - Keep this file up to date. Add a new rule whenever the user states a rule or a mandatory behavior.

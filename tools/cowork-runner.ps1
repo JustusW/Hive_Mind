@@ -100,34 +100,15 @@ function Process-Request {
     return
   }
 
+  # No interactive approval -- Claude is expected to ask in chat before
+  # writing the inbox file. The runner just announces what it's about to do
+  # and runs it. Stop with Ctrl+C if you need to abort mid-stream.
   Write-Banner "REQUEST  $id"
   Write-Host "WHAT     " -NoNewline; Write-Host $desc
   Write-Host "CWD      " -NoNewline; Write-Host $cwd
   Write-Host "COMMAND  " -NoNewline; Write-Host $cmd -ForegroundColor Yellow
+  Write-Host "LOG      " -NoNewline; Write-Host $log -ForegroundColor DarkGray
   Write-Host ("-" * 72) -ForegroundColor DarkGray
-  Write-Host "Press Enter to run, n to decline, or type feedback to send back." -ForegroundColor DarkGray
-
-  $ans = Read-Host "Execute? [Y/n/feedback]"
-
-  # Empty or y/yes -> run.    n/no -> decline.    Anything else -> feedback.
-  if ($ans -match '^(?i:n|no)$') {
-    Write-Host "[declined]" -ForegroundColor Red
-    Set-Content -LiteralPath $log    -Value "DECLINED by operator." -Encoding UTF8
-    Set-Content -LiteralPath $status -Value "-1"                    -Encoding UTF8
-    Remove-Item -LiteralPath $File.FullName -Force
-    return
-  }
-  if ($ans -ne "" -and $ans -notmatch '^(?i:y|yes)$') {
-    Write-Host "[feedback sent]" -ForegroundColor Magenta
-    $body = "FEEDBACK from operator (command not executed):`r`n" + $ans
-    Set-Content -LiteralPath $log    -Value $body -Encoding UTF8
-    Set-Content -LiteralPath $status -Value "-2"  -Encoding UTF8
-    Remove-Item -LiteralPath $File.FullName -Force
-    return
-  }
-
-  Write-Host ""
-  Write-Host "[executing] log -> $log" -ForegroundColor Green
   Write-Host ""
 
   # Wipe any stale log; write a header so the user sees what was actually run.
