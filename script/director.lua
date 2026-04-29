@@ -7,10 +7,9 @@
 -- This module also owns the join button GUI and the mining/decon interception
 -- handlers that keep the director from manipulating the world by hand.
 
-local shared  = require("shared")
-local mod_gui = require("mod-gui")
-local State   = require("script.state")
-local Force   = require("script.force")
+local shared = require("shared")
+local State  = require("script.state")
+local Force  = require("script.force")
 
 local M = {}
 
@@ -28,35 +27,73 @@ end
 
 -- ── Hive buttons ─────────────────────────────────────────────────────────────
 --
--- Two sibling buttons live in the mod-gui flow: "Join the Hive" and "Reject
--- the Hive". Both vanish for good once the player either joins or rejects;
--- rejection is persisted in `rejected_players` and survives save/load.
+-- Two sibling buttons — "Join the Hive" and "Reject the Hive" — live inside
+-- a private horizontal flow under `player.gui.top`. We avoid mod-gui's shared
+-- frame so that once the player commits either way and we tear the buttons
+-- down, the entire container goes with them and no empty bordered box is
+-- left behind. Rejection is persisted in `rejected_players` and survives
+-- save/load.
 
-local function ensure_button(flow, name, caption)
-  if flow[name] then return end
-  flow.add{
-    type    = "button",
-    name    = name,
-    caption = caption,
-    style   = mod_gui.button_style
+local FLOW_NAME = "hm-button-flow"
+
+local function get_flow(player, create)
+  local existing = player.gui.top[FLOW_NAME]
+  if existing then return existing end
+  if not create then return nil end
+  return player.gui.top.add{
+    type      = "flow",
+    name      = FLOW_NAME,
+    direction = "horizontal"
   }
 end
 
-local function destroy_button(flow, name)
-  local existing = flow[name]
-  if existing then existing.destroy() end
+-- Recursively destroy any element whose name matches one of the hive
+-- buttons. Used to evict leftover buttons that older versions parked in
+-- mod_gui's shared frame, so a config-change cleanup doesn't double-show.
+local function purge_legacy_buttons(element)
+  if not (element and element.valid) then return end
+  if element.name == shared.gui.join_button
+     or element.name == shared.gui.reject_button then
+    element.destroy()
+    return
+  end
+  if element.children then
+    for _, child in pairs(element.children) do purge_legacy_buttons(child) end
+  end
 end
 
 function M.update_hive_buttons(player)
   if not (player and player.valid) then return end
-  local flow = mod_gui.get_button_flow(player)
+  -- Remove any stray buttons sitting outside our owned flow (e.g. ones
+  -- placed by an older version of this mod into mod_gui's frame).
+  for _, root_name in pairs({"top", "left", "screen"}) do
+    local root = player.gui[root_name]
+    if root and root.valid then
+      for _, child in pairs(root.children) do
+        if child.name ~= FLOW_NAME then purge_legacy_buttons(child) end
+      end
+    end
+  end
   if M.is_player(player) or M.is_rejected(player) then
-    destroy_button(flow, shared.gui.join_button)
-    destroy_button(flow, shared.gui.reject_button)
+    local existing = get_flow(player, false)
+    if existing then existing.destroy() end
     return
   end
-  ensure_button(flow, shared.gui.join_button,   {"gui.hm-join-hive"})
-  ensure_button(flow, shared.gui.reject_button, {"gui.hm-reject-hive"})
+  local flow = get_flow(player, true)
+  if not flow[shared.gui.join_button] then
+    flow.add{
+      type    = "button",
+      name    = shared.gui.join_button,
+      caption = {"gui.hm-join-hive"}
+    }
+  end
+  if not flow[shared.gui.reject_button] then
+    flow.add{
+      type    = "button",
+      name    = shared.gui.reject_button,
+      caption = {"gui.hm-reject-hive"}
+    }
+  end
 end
 
 function M.update_all_hive_buttons()
