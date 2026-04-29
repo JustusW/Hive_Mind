@@ -1,44 +1,37 @@
 # Hive Mind Reloaded
 
-This repository now has two clearly separated parts:
+A Factorio mod where you leave your engineer life behind and direct a biter hive.
 
-- the new reboot scaffold at the repo root
-- the archived legacy 2.0 port in [legacy/hive-mind-2.0-port-reference](</E:/code/factorio/legacy/hive-mind-2.0-port-reference>)
+## How it works
 
-The root mod is now a fresh scaffold for the new design in [HIVE_REBOOT_REQUIREMENTS.md](</E:/code/factorio/HIVE_REBOOT_REQUIREMENTS.md>):
+1. Press **Join THE HIVE** to become the hive director (god-mode, no physical body).
+2. Craft and place a **Hive** — your construction and logistics backbone.
+3. The hive recruits nearby and distant biters automatically; they walk to it and are absorbed as stored creatures.
+4. Place building ghosts. The hive consumes stored creatures to pay for construction and dispatches biter-robots to build them.
+5. Place a **Hive Lab** and research through hive technologies using Pollution Science Packs, which the hive supplies from its creature stores.
+6. Place **Hive Nodes** to extend your construction and logistics network.
 
-- hive-directed play
-- real placeable hive buildings
-- creature-backed logistics and construction
-- map-wide recruitment
-- pollution as the passive upstream driver
+## Economy in brief
 
-## Current Scaffold
+- Vanilla pollution drives vanilla spawners → biters populate the map.
+- The hive recruits those biters (switches them to hivemind force, commands them to walk in).
+- Absorbed biters become `hm-creature-*` items visible in the hive's material inventory.
+- Building ghosts and science packs consume those creature items (converted to a pollution value).
 
-The new root mod currently includes:
+## Structures
 
-- `Hive`
-- `Hive Node`
-- `Hive Lab`
-- `Pheromones`
-- `Pollution Science Pack`
-- hidden internal `Pollution`
-- placeholder technologies and runtime ownership scaffolding
+| Structure | Build / visibility | Recruitment | Purpose |
+|---|---|---|---|
+| Hive | 100×100 tile box | 1000 tiles | Recruits creatures, stores them, funds construction and science |
+| Hive Node | 50×50 tile box | — | Extends the construction/logistics network |
+| Hive Lab | — | — | Researches hive technologies using Pollution Science Packs |
 
-It is intentionally minimal and meant to be the clean starting point for the reboot.
+Connected hives and hive nodes share one resource pool — the hive that pays for a build can be any in-network hive, not necessarily the closest.
 
-## Legacy Reference
+## Dev workflow
 
-The archived port remains available for reference, balancing ideas, and art/prototype reuse:
+See [DEVELOPMENT.md](DEVELOPMENT.md) for helper scripts and the isolated dev profile setup.
 
-- [legacy/hive-mind-2.0-port-reference/README.md](</E:/code/factorio/legacy/hive-mind-2.0-port-reference/README.md>)
-- [legacy/hive-mind-2.0-port-reference/INTENDED_BEHAVIOR.md](</E:/code/factorio/legacy/hive-mind-2.0-port-reference/INTENDED_BEHAVIOR.md>)
+## Spec
 
-## Dev Notes
-
-Use the existing helper scripts in [tools](</E:/code/factorio/tools>) to launch and validate the mod:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\check-load.ps1
-powershell -ExecutionPolicy Bypass -File .\tools\check-runtime.ps1 -UntilTick 600
-```
+- [HIVE_REBOOT_REQUIREMEN

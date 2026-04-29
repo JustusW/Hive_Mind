@@ -21,6 +21,23 @@ if (-not (Test-Path -LiteralPath $ModsPath)) {
 $linkName = "{0}_{1}" -f $modInfo.name, $modInfo.version
 $linkPath = Join-Path $ModsPath $linkName
 
+# Clean up stale junctions from previous versions of this mod so Factorio
+# doesn't refuse to load with "directory name doesn't match expected".
+$stalePattern = "{0}_*" -f $modInfo.name
+$normalizedRepoRoot = Resolve-NormalizedPath -Path $repoRoot
+foreach ($candidate in Get-ChildItem -Path $ModsPath -Directory -Filter $stalePattern -Force -ErrorAction SilentlyContinue) {
+  if ($candidate.Name -eq $linkName) { continue }
+  $isLink = ($candidate.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+  if (-not $isLink) { continue }
+  $candidateTarget = @($candidate.Target)[0]
+  if (-not $candidateTarget) { continue }
+  $normalizedCandidateTarget = Resolve-NormalizedPath -Path $candidateTarget
+  if ($normalizedCandidateTarget -eq $normalizedRepoRoot) {
+    Remove-Item -LiteralPath $candidate.FullName -Force
+    Write-Host "Removed stale link $($candidate.FullName)"
+  }
+}
+
 if (Test-Path -LiteralPath $linkPath) {
   $existingItem = Get-Item -LiteralPath $linkPath -Force
   $isLink = ($existingItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0

@@ -35,7 +35,9 @@ if ($createExitCode -ne 0) {
 }
 
 $saveReady = $false
-for ($attempt = 0; $attempt -lt 10; $attempt++) {
+# Factorio writes the save asynchronously after the --create process exits.
+# Allow up to 30 seconds before failing.
+for ($attempt = 0; $attempt -lt 120; $attempt++) {
   if (Test-Path -LiteralPath $savePath) {
     $saveReady = $true
     break
@@ -47,7 +49,8 @@ if (-not $saveReady) {
   throw "Runtime smoke test could not find the generated save: $savePath"
 }
 
-for ($attempt = 0; $attempt -lt 40; $attempt++) {
+# Wait for the profile lock to clear (Factorio holds it briefly post-write).
+for ($attempt = 0; $attempt -lt 120; $attempt++) {
   if (-not (Test-Path -LiteralPath $lockPath)) {
     break
   }

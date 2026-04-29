@@ -1,4 +1,26 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.6.0
+Date: 2026-04-29
+  Major:
+    - Rewrote build/cost flow: every hive recipe is now a free cursor stamp, the hive network pays the pollution cost on placement.
+    - Added network-wide resource pooling: connected hives + nodes share one virtual chest for cost reads/writes and lab supply.
+    - Hive death now respawns stored creatures as living units on the hive force (R6).
+    - Spawner and worm proxy ghosts now correctly swap to real entities on enemy force when a hive worker finishes building them.
+    - Direct placement of hive items is also charged from the network; insufficient funds destroy the entity and refund the cursor item.
+    - Build cost for arbitrary buildings is derived from recipe ingredients * a per-item pollution factor table.
+  Visual:
+    - All hive structures (hive, node, lab, storage chest, proxies) now render as colored variants of the biter spawner.
+    - Hive workers die with a small-biter corpse instead of vanishing silently.
+    - Creep is now four shades of purple, placed at random for organic texture.
+    - Creep growth is now random-ray rather than square-ring; the front advances unevenly.
+  Content:
+    - Added Small/Medium/Big/Behemoth Worm recipes, items, ghosts, and tech-gated unlocks.
+    - Worm techs are researched manually with Pollution Science Pack; spawner and lab unlocks remain event-flagged (place hive / spread creep).
+  Cleanup:
+    - Removed the per-recruit-tick debug log file (hm-debug.txt).
+    - Stripped stale pollution ingredients from hive-tier recipes (player can now actually craft them).
+    - Hive construction radius reduced to a 100x100 box (50x50 for nodes); recruitment radius unchanged at 1000 tiles.
+---------------------------------------------------------------------------------------------------
 Version: 0.5.0
 Date: 2026-04-28
   Renamed the rebooted mod to Hive Mind Reloaded.

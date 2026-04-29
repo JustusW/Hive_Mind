@@ -60,4 +60,4 @@ Run the validation helpers one at a time. They both rewrite the isolated dev pro
 - Pass `-ModsPath "$env:APPDATA\Factorio\mods"` explicitly if you want to target the shared mods directory instead.
 - `start-factorio.ps1` auto-detects common Factorio install locations and can be pointed at a custom path with `-FactorioRoot`.
 - The workspace includes `.editorconfig`, `.luarc.json`, and VS Code task recommendations to make Lua editing less noisy.
-- The current branch already targets Factorio 2.0 in `info.json`; the next development work is the runtime/data-stage porting tracked in `MODERN_FACTORIO_PORT_PLAN.md`.
+- The current branch targets Factorio 2.0 in `info.json`.

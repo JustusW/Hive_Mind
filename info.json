@@ -1,11 +1,11 @@
 {
   "name": "Hive_Mind",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "title": "Hive Mind Reloaded",
   "author": "Klonan, OpenAI Codex",
   "contact": "",
   "homepage": "",
-  "description": "A reboot scaffold for a hive-directed biter logistics and construction mod.",
+  "description": "Direct a biter hive: recruit creatures, sacrifice them to build, research with pollution.",
   "dependencies": ["base >= 2.0.0"],
   "factorio_version": "2.0"
 }

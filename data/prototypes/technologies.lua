@@ -1,72 +1,73 @@
 local shared = require("shared")
 
-local function make_technology(name, icon, order, effects, prerequisites)
+local function make_tech(name, icon_path, order, prerequisites, effects)
   return
   {
     type = "technology",
     name = name,
-    icon = icon,
+    localised_name = {"technology-name." .. name},
+    localised_description = {"technology-description." .. name},
+    icon = icon_path,
     icon_size = 256,
     order = order,
-    effects = effects or {},
     prerequisites = prerequisites or {},
+    effects = effects or {},
     unit =
     {
       count = 50,
       time = 15,
-      ingredients =
-      {
-        {shared.items.pollution_science_pack, 1}
-      }
+      ingredients = {{shared.items.pollution_science_pack, 1}}
     }
   }
 end
 
-data:extend(
+local function unlock(recipe_name)
+  return {type = "unlock-recipe", recipe = recipe_name}
+end
+
+local techs =
 {
-  make_technology(
+  -- hm-hive-spawners is auto-completed when the first hive is placed.
+  -- It must still grant its recipes via the normal unlock mechanism so the
+  -- recipes show up in the player's craft menu.
+  make_tech(
     shared.technologies.hive_spawners,
     "__base__/graphics/technology/military.png",
     "z[hive]-a[spawners]",
-    {
-      {type = "unlock-recipe", recipe = shared.recipes.hive_node}
-    }
+    {},
+    {unlock(shared.recipes.hive_node), unlock(shared.recipes.hive_spawner)}
   ),
-  make_technology(
+  -- hm-hive-labs is auto-completed when creep first spreads.
+  make_tech(
     shared.technologies.hive_labs,
     "__base__/graphics/technology/research-speed.png",
     "z[hive]-b[labs]",
-    {
-      {type = "unlock-recipe", recipe = shared.recipes.hive_lab}
-    },
-    {shared.technologies.hive_spawners}
-  ),
-  make_technology(
-    shared.technologies.worms_small,
-    "__base__/graphics/technology/stronger-explosives-1.png",
-    "z[hive]-c[worms-small]",
-    {},
-    {shared.technologies.hive_labs}
-  ),
-  make_technology(
-    shared.technologies.worms_medium,
-    "__base__/graphics/technology/stronger-explosives-2.png",
-    "z[hive]-d[worms-medium]",
-    {},
-    {shared.technologies.worms_small}
-  ),
-  make_technology(
-    shared.technologies.worms_big,
-    "__base__/graphics/technology/stronger-explosives-3.png",
-    "z[hive]-e[worms-big]",
-    {},
-    {shared.technologies.worms_medium}
-  ),
-  make_technology(
-    shared.technologies.worms_behemoth,
-    "__base__/graphics/technology/stronger-explosives-3.png",
-    "z[hive]-f[worms-behemoth]",
-    {},
-    {shared.technologies.worms_big}
+    {shared.technologies.hive_spawners},
+    {unlock(shared.recipes.hive_lab)}
   )
-})
+}
+
+-- Worm tier techs: each unlocks the recipe for its tier and prerequisites the
+-- previous tier.
+local worm_tech_icons =
+{
+  small    = "__base__/graphics/technology/stronger-explosives-1.png",
+  medium   = "__base__/graphics/technology/stronger-explosives-2.png",
+  big      = "__base__/graphics/technology/stronger-explosives-3.png",
+  behemoth = "__base__/graphics/technology/stronger-explosives-3.png"
+}
+
+local prev_tier_tech = shared.technologies.hive_labs
+for tier_index, tier in pairs(shared.worm_tiers) do
+  local w = shared.worm[tier]
+  techs[#techs + 1] = make_tech(
+    w.tech,
+    worm_tech_icons[tier],
+    ("z[hive]-c[worm-%d-%s]"):format(tier_index, tier),
+    {prev_tier_tech},
+    {unlock(w.recipe)}
+  )
+  prev_tier_tech = w.tech
+end
+
+data:extend(techs)

@@ -1,3 +1,4 @@
+require("data.prototypes.creep")
 require("data.prototypes.items")
 require("data.prototypes.entities")
 require("data.prototypes.recipes")
