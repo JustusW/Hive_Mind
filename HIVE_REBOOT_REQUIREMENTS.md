@@ -4,54 +4,63 @@ You play a hive mind, not an engineer. You direct biters instead of crafting cir
 
 ## Player flow
 
-1. Press **Join the Hive**. Your body disappears. You become a director with no inventory and no way to fight.
-2. Craft and place a **Hive**. This is your foothold.
-3. The Hive attracts biters from across the map. They walk in and get absorbed.
-4. Ghost-place buildings. Hive workers (visible biters) build them, paying with absorbed creatures.
-5. Place **Hive Labs** to do research. They consume creatures to make science.
-6. Research worm tiers and other upgrades.
+1. Press **Join the Hive** to commit, or **Reject the Hive** to opt out permanently. Either choice removes both buttons from the GUI; rejection prints a one-line obituary and leaves you alone.
+2. After joining you become a director with no physical body — the only items you carry are the buildings the hive has unlocked. Those items are pinned to your quickbar and refilled on a watchdog tick.
+3. Place a **Hive**. This is your foothold; recruitment and the construction network are anchored here.
+4. The hive draws biters in. They walk in and get absorbed; a floating label above each hive shows the network's available pollution.
+5. Place buildings directly (the cursor refills after each placement) or ghost-place them. The hive pays for construction by converting absorbed biters into pollution.
+6. Place **Hive Labs** to research. They consume creatures to make Pollution Science Packs.
+7. Research worm tiers, the infinite Attraction Reach, and other upgrades. Vanilla research is hidden — only the hive tree is visible.
 
 ## Rules
 
-- Joining the hive is permanent for the session.
+- Joining the hive is permanent for the session. Rejecting is also permanent — buttons never return.
 - One Hive per player. Placing a new one destroys the old one.
 - A destroyed Hive releases all its stored creatures back into the world as living units.
 - All hive creatures, recruited biters, and vanilla biters are friendly to each other.
-- The player can place buildings, place ghosts, and craft pheromones. Nothing else.
+- The director can place hive buildings, place ghosts of any buildable hive item, and craft pheromones. Nothing else.
+- Placements on top of trees, rocks, or cliffs are refused — the hive does not deconstruct terrain.
+- Ghosts that can't be fulfilled (missing tech, obstruction, insufficient pollution) are destroyed rather than left lingering.
 
 ## Buildings
 
-- **Hive** — always available. Your one starter.
+- **Hive** — always available, free to place. Your foothold and recruitment anchor.
 - **Hive Node** — extends the network. Unlocks when the first Hive is placed.
-- **Biter Spawner** — produces units. Unlocks when the first Hive is placed.
+- **Biter Spawner** — produces biters. Unlocks when the first Hive is placed.
+- **Spitter Spawner** — produces spitters. Unlocks when the first Hive is placed.
 - **Hive Lab** — research. Unlocks when creep first spreads.
 - **Worm turrets** (small → behemoth) — defenses. Each tier unlocks via research.
-- **Anything else** — vanilla and modded buildings can also be ghost-placed; the hive pays for them.
+
+Each placeable item lists its pollution cost in its tooltip.
 
 ## Pheromones
 
 - Two recipes: **Release Pheromones** (gives you a pheromone item) and **Withdraw Pheromones** (consumes the item).
-- While you carry a pheromone item, biters converge on you instead of the Hive.
+- While you carry a pheromone item, recruited creatures converge on you instead of the Hive.
 - Crafting the off recipe is the only way to stop attracting them.
 
 ## Network
 
-- Each Hive recruits creatures from across the map.
-- Each Hive and Hive Node has a local construction zone where it builds. Connected zones extend the network.
+- Each Hive recruits creatures inside its 100×100 attraction box, scaled by the infinite **Attraction Reach** tech (+10% per level).
+- Each Hive and Hive Node has a 100×100 / 50×50 construction zone where it builds. Connected zones extend the network.
 - Connected hives and nodes share one resource pool.
-- Both grow purple **creep** organically out from their footprint. Biters walk faster on creep.
+- A single purple **creep** tile fills the same box outward in Chebyshev rings. Biters move faster on creep.
 
 ## Cost
 
 - Every absorbed creature is worth some pollution.
 - Every build and every science pack costs pollution.
-- The hive spends creatures to pay. The player never handles pollution directly.
+- The network's capacity is pre-checked before any spend: if the pool is short, the build is refused outright and no biters are consumed. The error message reports the gap as `Insufficient pollution: 30 / 100 (have / need).`
+- Successful placements auto-refund the cursor, so a long row of buildings doesn't end with the cursor empty.
+- The hive spends creatures to pay. The player never handles pollution items directly.
 
 ## Research
 
 - All research uses **Pollution Science Packs**.
 - Hive Spawners and Hive Labs unlock from gameplay events (placing a hive, spreading creep) rather than manual research.
 - Worm tiers are researched manually in order.
+- Attraction Reach is infinite (+10% per level, cost ramps with level).
+- The vanilla tech tree is hidden on the hive force.
 
 ## Non-goals
 

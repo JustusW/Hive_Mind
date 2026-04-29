@@ -104,7 +104,8 @@ shared.intervals =
   supply  = 60,
   robots  = 180,
   creep   = 3,
-  labels  = 30   -- pollution-display refresh on each hive
+  labels  = 30,  -- pollution-display refresh on each hive
+  loadout = 60   -- inventory + quickbar watchdog for hive directors
 }
 
 shared.hive_robot_count = 20

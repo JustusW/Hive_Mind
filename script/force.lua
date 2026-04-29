@@ -55,13 +55,24 @@ function M.get_permission_group()
   return group
 end
 
--- Disable every recipe / enable every tech, then re-enable the always-on
--- recipes plus anything whose tech is already researched. Idempotent — safe to
--- call from on_init, on_configuration_changed, and after force creation.
+local function is_hive_tech(name)
+  -- All techs added by this mod are namespaced "hm-"; vanilla and other
+  -- mods' techs are not. The hive directorate's tree shows only hive
+  -- research, so we disable everything else on the hive force. Disabled
+  -- techs are hidden from the tech-tree GUI in 2.0 (their default
+  -- visible_when_disabled is false).
+  return name:sub(1, 3) == "hm-"
+end
+
+-- Disable every recipe and every non-hive tech, then re-enable the always-on
+-- recipes plus anything whose tech is already researched. Idempotent — safe
+-- to call from on_init, on_configuration_changed, and after force creation.
 function M.configure(force)
   if not (force and force.valid) then return end
   for _, recipe in pairs(force.recipes)      do recipe.enabled = false end
-  for _, tech   in pairs(force.technologies) do tech.enabled   = true  end
+  for _, tech   in pairs(force.technologies) do
+    tech.enabled = is_hive_tech(tech.name)
+  end
 
   for _, name in pairs(always_enabled_recipes) do
     if force.recipes[name] then force.recipes[name].enabled = true end

@@ -117,11 +117,67 @@ function M.apply(player)
   player.clear_cursor()
 end
 
+-- ── Director loadout ────────────────────────────────────────────────────────
+--
+-- The director can never carry vanilla items: the only way they interact with
+-- the world is by placing hive structures. We keep one of every currently-
+-- buildable item in their inventory at all times and pin the same items to
+-- the quickbar in a stable order so the player can pick them with hotkeys
+-- without having to rummage through the inventory window.
+--
+-- "Currently buildable" means the gating recipe is enabled on the hive force.
+-- A new building unlocked by research therefore appears in the loadout on
+-- the next watchdog tick (or immediately on join / respawn).
+
+local buildable_items =
+{
+  {item = shared.items.hive,                 recipe = shared.recipes.hive},
+  {item = shared.items.hive_node,            recipe = shared.recipes.hive_node},
+  {item = shared.items.hive_lab,             recipe = shared.recipes.hive_lab},
+  {item = shared.items.hive_spawner,         recipe = shared.recipes.hive_spawner},
+  {item = shared.items.hive_spitter_spawner, recipe = shared.recipes.hive_spitter_spawner},
+  {item = shared.items.pollution_generator,  recipe = shared.recipes.pollution_generator}
+}
+for _, tier in pairs(shared.worm_tiers) do
+  buildable_items[#buildable_items + 1] =
+    {item = shared.worm[tier].item, recipe = shared.worm[tier].recipe}
+end
+
+local function refill_loadout(player)
+  if not (player and player.valid and M.is_player(player)) then return end
+  local inv = player.get_main_inventory()
+  if not inv then return end
+  local force = player.force
+
+  local quickbar = {}
+  for _, entry in ipairs(buildable_items) do
+    local recipe = force.recipes[entry.recipe]
+    if recipe and recipe.enabled then
+      if inv.get_item_count(entry.item) < 1 then
+        inv.insert{name = entry.item, count = 1}
+      end
+      quickbar[#quickbar + 1] = entry.item
+    end
+  end
+
+  for slot, item_name in ipairs(quickbar) do
+    local current = player.get_quick_bar_slot(slot)
+    if not (current and current.name == item_name) then
+      player.set_quick_bar_slot(slot, item_name)
+    end
+  end
+end
+
+function M.refill_all_loadouts()
+  for _, player in pairs(game.players) do refill_loadout(player) end
+end
+
 -- Mark `player` as joined and apply the director state. No-op if already joined.
 function M.join(player)
   if M.is_player(player) then return end
   State.get().joined_players[player.index] = true
   M.apply(player)
+  refill_loadout(player)
   M.update_hive_buttons(player)
   player.print({"gui.hm-hive-joined"})
 end
@@ -226,6 +282,7 @@ function M.on_player_respawned(event)
   local player = game.get_player(event.player_index)
   if not M.is_player(player) then return end
   M.apply(player)
+  refill_loadout(player)
 end
 
 -- ── GUI events ───────────────────────────────────────────────────────────────

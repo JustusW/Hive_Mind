@@ -34,6 +34,7 @@ local function on_tick(event)
   if tick % shared.intervals.robots  == 0 then Hive.tick_robots()           end
   if tick % shared.intervals.creep   == 0 then Creep.tick()                 end
   if tick % shared.intervals.labels  == 0 then Labels.tick()                end
+  if tick % shared.intervals.loadout == 0 then Director.refill_all_loadouts() end
 
   Debug.tick()
 end
