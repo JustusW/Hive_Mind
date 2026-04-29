@@ -21,5 +21,8 @@ Applied at the start and end of every prompt.
 - After the runner has run, call `AskUserQuestion` again to confirm completion before reading `E:\code\claude shared\cowork-runner\.cowork\outbox\<id>.{log,exit}`. Don't poll or assume.
 - `.claude/settings.json` (per-project at `<project>/.claude/settings.json`, or global at `%USERPROFILE%\.claude\settings.json`) is the authoritative gate for inbox writes — it should `ask` on Write/Edit/Bash to `**/.cowork/inbox/**`. Defer to it; don't argue around it.
 
+## Feature workflow
+- When implementing a new feature, **first** update `HIVE_REBOOT_REQUIREMENTS.md` (the player-facing intent) and `HIVE_DESIGN.md` (the implementation choices), and only then write the code. The docs lead, the code follows.
+
 ## Maintenance
 - Keep this file up to date. Add a new rule whenever the user states a rule or a mandatory behavior.
