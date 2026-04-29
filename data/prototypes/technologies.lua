@@ -35,7 +35,11 @@ local techs =
     "__base__/graphics/technology/military.png",
     "z[hive]-a[spawners]",
     {},
-    {unlock(shared.recipes.hive_node), unlock(shared.recipes.hive_spawner)}
+    {
+      unlock(shared.recipes.hive_node),
+      unlock(shared.recipes.hive_spawner),
+      unlock(shared.recipes.hive_spitter_spawner)
+    }
   ),
   -- hm-hive-labs is auto-completed when creep first spreads.
   make_tech(

@@ -86,6 +86,20 @@ local prototypes =
     place_result = shared.entities.spawner_ghost,
     stack_size = 10
   },
+  -- Spitter spawner item — same proxy mechanic, swaps to a vanilla
+  -- spitter-spawner. Tinted lime to read as a different spawner family.
+  {
+    type = "item",
+    name = shared.items.hive_spitter_spawner,
+    localised_name = {"item-name." .. shared.items.hive_spitter_spawner},
+    localised_description = build_cost_description(shared.build_costs[shared.entities.spitter_spawner_ghost]),
+    icons = {{icon = spawner_proto.icon, icon_size = spawner_proto.icon_size,
+              tint = {r=0.45, g=0.85, b=0.20, a=1}}},
+    subgroup = "defensive-structure",
+    order = "z[hive]-e[spitter-spawner]",
+    place_result = shared.entities.spitter_spawner_ghost,
+    stack_size = 10
+  },
   -- Pollution generator (debug).
   {
     type = "item",

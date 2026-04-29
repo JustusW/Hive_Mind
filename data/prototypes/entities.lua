@@ -283,6 +283,17 @@ local spawner_ghost = make_proxy(
   {{-2.5, -2.5}, {2.5, 2.5}}
 )
 
+-- Spitter spawner proxy: shaped like the biter spawner ghost (so the build
+-- footprint matches the eventual real entity) but tinted lime to read as
+-- "spitter" at a glance during the brief proxy phase before the swap.
+local col_spitter = {r = 0.45, g = 0.85, b = 0.20, a = 1}
+local spitter_spawner_ghost = make_proxy(
+  shared.entities.spitter_spawner_ghost,
+  col_spitter,
+  {{-2.2, -2.2}, {2.2, 2.2}},
+  {{-2.5, -2.5}, {2.5, 2.5}}
+)
+
 -- Worm proxies — one per tier. Visually distinct purple shades so players can
 -- tell which tier they're placing during the brief proxy phase.
 local worm_colors =
@@ -310,7 +321,8 @@ end
 local entities =
 {
   hive, hive_node, hive_lab,
-  construction_robot, hive_storage, pollution_gen, spawner_ghost
+  construction_robot, hive_storage, pollution_gen,
+  spawner_ghost, spitter_spawner_ghost
 }
 for _, w in pairs(worm_proxies) do
   entities[#entities + 1] = w

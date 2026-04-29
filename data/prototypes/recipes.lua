@@ -48,6 +48,16 @@ local recipes =
     ingredients = {},
     results = {{type = "item", name = shared.items.hive_spawner, amount = 1}}
   },
+  -- Spitter spawner: gated by hm-hive-spawners alongside the biter version.
+  {
+    type = "recipe",
+    name = shared.recipes.hive_spitter_spawner,
+    localised_name = {"recipe-name." .. shared.recipes.hive_spitter_spawner},
+    enabled = false,
+    energy_required = 0.5,
+    ingredients = {},
+    results = {{type = "item", name = shared.items.hive_spitter_spawner, amount = 1}}
+  },
   -- Debug pollution generator: free, always enabled. Gate behind a startup
   -- setting before shipping (see HIVE_DESIGN.md "Debug fixtures").
   {

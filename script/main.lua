@@ -19,6 +19,7 @@ local Build     = require("script.build")
 local Death     = require("script.death")
 local Creep     = require("script.creep")
 local Lab       = require("script.lab")
+local Labels    = require("script.labels")
 local Debug     = require("script.debug")
 
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ local function on_tick(event)
   if tick % shared.intervals.supply  == 0 then Lab.tick_supply()            end
   if tick % shared.intervals.robots  == 0 then Hive.tick_robots()           end
   if tick % shared.intervals.creep   == 0 then Creep.tick()                 end
+  if tick % shared.intervals.labels  == 0 then Labels.tick()                end
 
   Debug.tick()
 end

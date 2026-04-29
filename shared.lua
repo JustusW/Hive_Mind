@@ -28,7 +28,8 @@ shared.entities =
   hive_storage = "hm-hive-storage",
   construction_robot = "hm-construction-robot",
   pollution_generator = "hm-pollution-generator",
-  spawner_ghost = "hm-spawner-ghost"
+  spawner_ghost = "hm-spawner-ghost",
+  spitter_spawner_ghost = "hm-spitter-spawner-ghost"
 }
 
 shared.items =
@@ -37,6 +38,7 @@ shared.items =
   hive_node = "hm-hive-node",
   hive_lab = "hm-hive-lab",
   hive_spawner = "hm-biter-spawner",
+  hive_spitter_spawner = "hm-spitter-spawner",
   pheromones = "hm-pheromones",
   pollution = "hm-pollution",
   pollution_science_pack = "hm-pollution-science-pack",
@@ -50,6 +52,7 @@ shared.recipes =
   hive_node = "hm-hive-node",
   hive_lab = "hm-hive-lab",
   hive_spawner = "hm-biter-spawner",
+  hive_spitter_spawner = "hm-spitter-spawner",
   pheromones_on = "hm-pheromones-on",
   pheromones_off = "hm-pheromones-off",
   pollution_generator = "hm-pollution-generator"
@@ -100,7 +103,8 @@ shared.intervals =
   absorb  = 30,
   supply  = 60,
   robots  = 180,
-  creep   = 3
+  creep   = 3,
+  labels  = 30   -- pollution-display refresh on each hive
 }
 
 shared.hive_robot_count = 20
@@ -109,9 +113,10 @@ shared.hive_robot_count = 20
 -- Anything not listed here uses the recipe-derived formula in script/main.lua.
 shared.build_costs =
 {
-  [shared.entities.hive_node]    = 100,
-  [shared.entities.hive_lab]     = 150,
-  [shared.entities.spawner_ghost] = 500
+  [shared.entities.hive_node]            = 100,
+  [shared.entities.hive_lab]             = 150,
+  [shared.entities.spawner_ghost]        = 500,
+  [shared.entities.spitter_spawner_ghost] = 500
 }
 for _, tier in pairs(shared.worm_tiers) do
   -- Cost ramps small -> behemoth. Tunable.
@@ -122,7 +127,8 @@ end
 -- Maps ghost / proxy entity name -> player-facing item name when they differ.
 shared.ghost_items =
 {
-  [shared.entities.spawner_ghost] = shared.items.hive_spawner
+  [shared.entities.spawner_ghost]         = shared.items.hive_spawner,
+  [shared.entities.spitter_spawner_ghost] = shared.items.hive_spitter_spawner
 }
 for _, tier in pairs(shared.worm_tiers) do
   shared.ghost_items[shared.worm[tier].ghost] = shared.worm[tier].item

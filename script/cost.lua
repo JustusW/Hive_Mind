@@ -185,13 +185,30 @@ end
 
 -- ── Refund / messages ────────────────────────────────────────────────────────
 
+-- Put `count` of `item_name` back on the player. Tries the cursor first so
+-- placement stays smooth (the next click can land another building without
+-- having to dig the item out of the inventory), and falls back to the main
+-- inventory when the cursor is busy.
 function M.refund_player_item(player_index, item_name, count)
   if not (player_index and item_name) then return end
+  count = count or 1
   local player = game.get_player(player_index)
   if not (player and player.valid) then return end
+
+  local cursor = player.cursor_stack
+  if cursor then
+    if cursor.valid_for_read and cursor.name == item_name then
+      cursor.count = cursor.count + count
+      return
+    end
+    if not cursor.valid_for_read then
+      cursor.set_stack{name = item_name, count = count}
+      return
+    end
+  end
+
   local inv = player.get_main_inventory()
-  if not inv then return end
-  inv.insert{name = item_name, count = count or 1}
+  if inv then inv.insert{name = item_name, count = count} end
 end
 
 -- Print the right localised message for a charge failure. `info`, when
