@@ -21,7 +21,7 @@ creep.walking_sound = {}
 for k = 1, 8 do
   creep.walking_sound[k] =
   {
-    filename = "__Hive_Mind__/legacy/hive-mind-2.0-port-reference/data/tiles/creep-0" .. k .. ".ogg"
+    filename = "__Hive_Mind_Reworked__/legacy/hive-mind-2.0-port-reference/data/tiles/creep-0" .. k .. ".ogg"
   }
 end
 

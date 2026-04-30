@@ -58,7 +58,7 @@ Run the validation helpers one at a time. They both rewrite the isolated dev pro
 
 ## Notes
 
-- `link-mod.ps1` reads `info.json` and creates a junction named `Hive_Mind_0.4.3` in the mods directory.
+- `link-mod.ps1` reads `info.json` and creates a junction named `<mod-name>_<version>` in the mods directory.
 - By default, the helpers use a sibling `factorio-dev-profile` directory outside the repo so test launches do not load your normal `%APPDATA%\Factorio\mods` collection and the repo does not contain a self-referential mod junction.
 - `start-factorio.ps1` also generates a dedicated config file and routes Factorio write-data into the isolated profile, which keeps logs, saves, and lock files out of the shared profile.
 - `restart-factorio.ps1` closes any running Factorio process, waits for it to exit, and relaunches through `start-factorio.ps1`.
