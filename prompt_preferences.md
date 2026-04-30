@@ -25,6 +25,9 @@ Applied at the start and end of every prompt.
 ## Feature workflow
 - When implementing a new feature, **first** update `requirements.md` (the player-facing intent) and `design.md` (the implementation choices), and only then write the code. The docs lead, the code follows.
 
+## Versioning
+- Do not change version numbers autonomously. The user releases manually on mods.factorio.com; autonomous bumps cause inconsistent updates.
+
 ## Maintenance
 - Keep this file up to date. Add a new rule whenever the user states a rule or a mandatory behavior.
 - Additions to the rules must be explicitly approved by me and given verbatim without implied stuff, let alone post script changes.

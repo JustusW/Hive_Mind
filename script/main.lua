@@ -25,6 +25,7 @@ local Supremacy = require("script.supremacy")
 local Debug     = require("script.debug")
 local Telemetry = require("script.telemetry")
 local Scan      = require("script.scan")
+local Pheromone = require("script.pheromone")
 
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ local function on_tick(event)
   if tick % shared.intervals.labels    == 0 then Labels.tick()                                              end
   if tick % shared.intervals.loadout   == 0 then Director.refill_all_loadouts()                             end
   if tick % shared.intervals.supremacy == 0 then Telemetry.measure("supremacy", Supremacy.tick)             end
+  if tick % shared.intervals.scan      == 0 then Pheromone.tick()                                           end
 
   Debug.tick()
 
@@ -120,6 +122,11 @@ end
 script.on_event(e.on_player_gun_inventory_changed,   function(ev) clear_forbidden(ev, defines.inventory.character_guns)  end)
 script.on_event(e.on_player_ammo_inventory_changed,  function(ev) clear_forbidden(ev, defines.inventory.character_ammo)  end)
 script.on_event(e.on_player_armor_inventory_changed, function(ev) clear_forbidden(ev, defines.inventory.character_armor) end)
+
+-- Pheromone burst: crafting hm-pheromones-on triggers a single-shot burst
+-- at the player's position. The recipe still produces an hm-pheromones item
+-- as a craft result; Pheromone.on_crafted consumes it on receipt.
+script.on_event(e.on_player_crafted_item, Pheromone.on_crafted)
 
 -- Build pipeline. Worker materialisations come back through script_raised_built
 -- with player_index = nil; Build.on_built no-ops the cost branches in that

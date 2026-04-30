@@ -132,6 +132,22 @@ hive.recharging_light      = nil
 hive.base_animation        = gleba_spawner_anim(2.0)
 
 -- ── Hive Node ─────────────────────────────────────────────────────────────────
+-- Footprint matches the rendered graphic (Space Age small Pentapod spawner)
+-- rather than the inherited 4×4 roboport box, so the hitbox lines up with
+-- what the player sees.
+local function space_age_boxes(category, name, default_collision, default_selection)
+  local p = data.raw[category] and data.raw[category][name]
+  if p and p.collision_box and p.selection_box then
+    return table.deepcopy(p.collision_box), table.deepcopy(p.selection_box)
+  end
+  return default_collision, default_selection
+end
+
+local hive_node_collision, hive_node_selection = space_age_boxes(
+  "unit-spawner", "gleba-spawner-small",
+  {{-1.4, -1.4}, {1.4, 1.4}},
+  {{-1.5, -1.5}, {1.5, 1.5}}
+)
 
 local hive_node = table.deepcopy(roboport_proto)
 hive_node.name                  = shared.entities.hive_node
@@ -157,6 +173,8 @@ hide_sprite(hive_node.door_animation_down)
 hide_sprite(hive_node.recharging_animation)
 hive_node.recharging_light      = nil
 hive_node.base_animation        = space_age_assets.gleba_spawner_small_animation()
+hive_node.collision_box         = hive_node_collision
+hive_node.selection_box         = hive_node_selection
 
 -- ── Pheromone Vent ───────────────────────────────────────────────────────────
 -- A recoloured Hive Node that diverts the network's incoming biter stream to
@@ -197,6 +215,13 @@ do
 end
 
 -- ── Hive Lab ──────────────────────────────────────────────────────────────────
+-- Footprint matches the biolab graphic rather than the vanilla 3×3 lab box.
+
+local hive_lab_collision, hive_lab_selection = space_age_boxes(
+  "lab", "biolab",
+  {{-2.2, -2.2}, {2.2, 2.2}},
+  {{-2.5, -2.5}, {2.5, 2.5}}
+)
 
 local hive_lab = table.deepcopy(lab_proto)
 hive_lab.name                  = shared.entities.hive_lab
@@ -215,6 +240,8 @@ hive_lab.off_animation         = space_age_assets.biolab_off_animation()
 hive_lab.entity_info_icon_shift = nil
 if hive_lab.working_visualisations then hive_lab.working_visualisations = nil end
 if hive_lab.light                  then hive_lab.light = nil end
+hive_lab.collision_box        = hive_lab_collision
+hive_lab.selection_box        = hive_lab_selection
 
 -- ── Hive Worker ───────────────────────────────────────────────────────────────
 -- A unit commanded by the script-side dispatcher in script/workers.lua. It

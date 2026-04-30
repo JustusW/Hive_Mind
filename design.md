@@ -52,9 +52,9 @@ Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive stor
 
 Hive tracking is backed by runtime state but treats actual `hm-hive` and `hm-hive-node` entities on the hive force as authoritative recovery data. On load/config changes and before network-sensitive scans, the runtime reconciles state from the world: missing hives are linked back to a player bucket, missing nodes are restored to `hive_nodes`, invalid references are removed, and hive storage records are recreated without discarding valid chests. This keeps construction range, recruitment, creep growth, and one-hive replacement working after save/load.
 
-Crafting menu placement: pheromone toggle recipes and pheromone-vent mode markers (`hm-pheromone-mode-{small,default,large}`) live in the production tab via the `production-machine` subgroup. Every other hive recipe (including `hm-pheromone-vent`) lives in the intermediate products tab via the `intermediate-product` subgroup.
+Crafting menu placement: the pheromone burst recipe and pheromone-vent mode markers (`hm-pheromone-mode-{small,default,large}`) live in the production tab via the `production-machine` subgroup. Every other hive recipe (including `hm-pheromone-vent`) lives in the intermediate products tab via the `intermediate-product` subgroup.
 
-When a joined player carries `hm-pheromones`, recruitment switches to that player as the target. On the same recruitment tick, every hive storage chest disgorges all stored creature items back into live units on the hive force and commands them toward the pheromone carrier. Pollution items stay in storage. Absorption is paused while pheromones are active so the freshly released units are not immediately swallowed again.
+The `Release Pheromones` recipe (`hm-pheromones-on`) is the player-facing trigger for the single-shot pheromone burst (see "Player pheromone burst"). It still produces an `hm-pheromones` item as a craft result, but the item is consumed immediately on receipt and exists only because Factorio recipes need a result. There is no Withdraw recipe — the burst is bounded and re-crafting cancels.
 
 ## Hive workers
 
@@ -107,10 +107,24 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 
 Priority when picking the destination of a recruited biter:
 
-1. Pheromone player.
+1. Active player pheromone burst (singleton position; see "Player pheromone burst"). Overrides every other destination on every surface.
 2. Closest pheromone vent **to the recruited unit** on the recruiter's network with `gather_count < attack_group_size_for(vent)`.
 3. Hive (recruiter is a hive, target is the hive).
 4. Hive node fallback (recruiter is a hive node, target is the nearest hive on the surface — nodes have no chest, so absorption only happens at hives).
+
+## Player pheromone burst
+
+- Singleton state: `state.active_pheromone = { surface_index, position = {x,y}, target_size, gather_count, seen_units = {}, started_tick }` or `nil`. At most one instance is ever live.
+- Trigger: the player crafts the `hm-pheromones-on` recipe. The recipe still produces an `hm-pheromones` item; on `on_player_crafted_item` (or the equivalent inventory-changed handler when the item appears) the script (a) clears any previous `state.active_pheromone`, then (b) writes a new instance with `surface_index = player.surface.index`, `position = player.position`, `target_size = pheromone_vent.base_size + tech_increment × completed_levels` (i.e. default-mode vent size, scaled by Attack Group Size tech), `gather_count = 0`, `seen_units = {}`, `started_tick = game.tick`. The crafted `hm-pheromones` item is consumed in the same tick — it has no in-world function beyond being the recipe's result.
+- Re-crafting while an instance is live and `gather_count < target_size` simply overwrites the singleton with a fresh instance at the new position. Already-recruited biters still hold their previous attack_area command targeting the old position; on the next recruitment tick they get re-targeted to the new burst's position via the destination-resolution rule.
+- Re-crafting after an instance has dispatched (gather_count reached target_size, see below) is unrelated to the dispersed group: that group is a real engine attack group and is not tracked further. The new craft starts a clean gather.
+- Destination integration: when `state.active_pheromone` is set and the recruiter is on its surface, recruitment uses `command_unit_to_position(unit, active_pheromone.position)` (attack_area, radius 16, distraction.none) — the same call already used today for pheromone players. This naturally keeps biters engaging engineer stuff in the immediate area.
+- Disgorge: on each recruitment tick where `state.active_pheromone` is set, every hive on the burst's surface disgorges its stored creature items as live units (existing `disgorge_hive_units` call) and commands them to the burst position. Pollution stays in storage.
+- Arrival counting: on the same cadence as the vent arrival scan (unified scan), if `state.active_pheromone` is set the script does one `find_entities_filtered{ position, radius = pheromone_vent.arrival_radius, force = hive_force, type = "unit" }` at the burst position. New unit_numbers are added to `seen_units` and `gather_count` is incremented. When `gather_count >= target_size`:
+  - `group = surface.create_unit_group{ position = burst.position, force = hive_force }`.
+  - For each in-radius hive-force unit (re-scanned at dispatch time, excluding `hm-hive-worker`): `group:add_member(unit)`.
+  - `group:start_moving()` — engine takes over; the burst entry is cleared.
+- Persistence: `state.active_pheromone` lives in `storage`, so save/load preserves an in-progress gather. The `surface_index` is stored (not the LuaSurface) so it's reload-stable.
 
 ## Pheromone vent
 

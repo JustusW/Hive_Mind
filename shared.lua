@@ -55,7 +55,6 @@ shared.recipes =
   hive_spawner = "hm-biter-spawner",
   hive_spitter_spawner = "hm-spitter-spawner",
   pheromones_on = "hm-pheromones-on",
-  pheromones_off = "hm-pheromones-off",
   pollution_generator = "hm-pollution-generator",
   pheromone_vent = "hm-pheromone-vent"
 }

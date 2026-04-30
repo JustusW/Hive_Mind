@@ -10,7 +10,6 @@ local always_enabled_recipes =
 {
   shared.recipes.hive,
   shared.recipes.pheromones_on,
-  shared.recipes.pheromones_off,
   shared.recipes.pollution_generator
 }
 

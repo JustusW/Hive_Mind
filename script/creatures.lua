@@ -12,6 +12,7 @@ local Hive      = require("script.hive")
 local Network   = require("script.network")
 local Telemetry = require("script.telemetry")
 local Vent      = require("script.vent")
+local Pheromone = require("script.pheromone")
 
 local M = {}
 
@@ -81,21 +82,11 @@ local function command_unit_to_position(unit, position)
   }
 end
 
-local function player_has_pheromones(player)
-  if not (player and player.valid) then return false end
-  local cursor = player.cursor_stack
-  if cursor and cursor.valid_for_read and cursor.name == shared.items.pheromones then
-    return true
-  end
-  local inv = player.get_main_inventory()
-  return inv and inv.get_item_count(shared.items.pheromones) > 0
-end
-
-local function active_pheromone_player(s)
-  for player_index in pairs(s.joined_players) do
-    local player = game.get_player(player_index)
-    if player_has_pheromones(player) then return player end
-  end
+-- A pheromone burst (player-triggered) is "active" when state.active_pheromone
+-- is set. It overrides every other recruitment destination on its surface.
+-- See script/pheromone.lua.
+local function active_pheromone(s)
+  return s.active_pheromone
 end
 
 local function disgorge_hive_units(hive, target_position, hive_force)
@@ -168,7 +159,9 @@ end
 
 function M.tick_absorption()
   local s = State.get()
-  if active_pheromone_player(s) then return end
+  -- While a pheromone burst is live, pause absorption so disgorged units
+  -- aren't immediately re-eaten on their way out.
+  if active_pheromone(s) then return end
   for _, hive in pairs(Hive.all()) do M.absorb_at_hive(hive) end
   -- Hive nodes also absorb (0.9.0) — they have no chest of their own, so
   -- absorbed creatures route to the chest of the nearest hive.
@@ -332,12 +325,13 @@ local function bucket_for_member(member, ctx)
 end
 
 -- Per-unit destination resolver. Priority:
---   1. Pheromone player (existing rule).
+--   1. Active player pheromone burst, if on the unit's surface.
 --   2. Closest non-full pheromone vent on `network` to the unit.
 --   3. The recruiter's default `target` (the recruiter itself or a fallback).
 local function resolve_destination(unit, default_target, ctx, network)
-  if ctx.pheromone_player then
-    return {position = ctx.pheromone_player.position}
+  if ctx.pheromone_burst and unit and unit.valid
+     and unit.surface and unit.surface.index == ctx.pheromone_burst.surface_index then
+    return {position = ctx.pheromone_burst.position}
   end
   local vent = Vent.closest_non_full_for_unit(unit, network)
   if vent then return {entity = vent} end
@@ -403,13 +397,13 @@ function M.recruit_setup_tick()
   if not (enemy_force and hive_force) then return nil end
   local s = State.get()
   return {
-    state            = s,
-    tick             = game.tick,
-    enemy_force      = enemy_force,
-    hive_force       = hive_force,
-    factor           = reach_factor(hive_force),
-    pheromone_player = active_pheromone_player(s),
-    hives            = Hive.all()
+    state           = s,
+    tick            = game.tick,
+    enemy_force     = enemy_force,
+    hive_force      = hive_force,
+    factor          = reach_factor(hive_force),
+    pheromone_burst = active_pheromone(s),
+    hives           = Hive.all()
   }
 end
 
@@ -423,8 +417,10 @@ function M.recruit_at_member(entity, kind, ctx)
   local bucket, network = bucket_for_member(entity, ctx)
 
   if kind == "hive" then
-    if ctx.pheromone_player then
-      disgorge_hive_units(entity, ctx.pheromone_player.position, ctx.hive_force)
+    if ctx.pheromone_burst
+       and entity.surface
+       and entity.surface.index == ctx.pheromone_burst.surface_index then
+      disgorge_hive_units(entity, ctx.pheromone_burst.position, ctx.hive_force)
     end
     local default_target = {entity = entity}
     local radius = shared.ranges.hive * ctx.factor

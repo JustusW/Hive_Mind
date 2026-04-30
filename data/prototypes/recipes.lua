@@ -91,7 +91,10 @@ local recipes =
     ingredients = {},
     results = {{type = "item", name = shared.items.pollution_generator, amount = 1}}
   },
-  -- Pheromones on: produces the lure item. Toggle the hive→player attraction.
+  -- Release Pheromones: one-shot burst trigger. Crafting this recipe locks
+  -- a temporary attractor at the player's position; the resulting
+  -- hm-pheromones item is consumed on receipt by Pheromone.on_crafted.
+  -- The item only exists because Factorio recipes need a result.
   {
     type = "recipe",
     name = shared.recipes.pheromones_on,
@@ -101,22 +104,6 @@ local recipes =
     energy_required = 0.5,
     ingredients = {},
     results = {{type = "item", name = shared.items.pheromones, amount = 1}}
-  },
-  -- Pheromones off: consumes the lure item. No result; icon must be set
-  -- explicitly because Factorio cannot derive one from an empty result list.
-  {
-    type = "recipe",
-    name = shared.recipes.pheromones_off,
-    localised_name = {"recipe-name." .. shared.recipes.pheromones_off},
-    icon = data.raw["item"][shared.items.pheromones].icon,
-    icon_size = data.raw["item"][shared.items.pheromones].icon_size,
-    subgroup = subgroup_pheromones,
-    enabled = false,
-    energy_required = 0.5,
-    ingredients = {{type = "item", name = shared.items.pheromones, amount = 1}},
-    results = {},
-    allow_decomposition = false,
-    allow_as_intermediate = false
   }
 }
 

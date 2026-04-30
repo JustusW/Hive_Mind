@@ -38,13 +38,14 @@ Each placeable item lists its pollution cost in its tooltip.
 ## Crafting menu
 
 - Hive buildings, including Pheromone Vent — intermediate products tab.
-- Pheromone toggle recipes (Release / Withdraw) and Pheromone Vent mode markers (small / default / large) — production tab.
+- Release Pheromones recipe and Pheromone Vent mode markers (small / default / large) — production tab.
 
 ## Pheromones
 
-- Two recipes: **Release Pheromones** (gives you a pheromone item) and **Withdraw Pheromones** (consumes the item).
-- While you carry a pheromone item, recruited creatures converge on you instead of the Hive.
-- Crafting the off recipe is the only way to stop attracting them.
+- One recipe: **Release Pheromones**. Crafting it triggers a single-shot pheromone burst at the player's position at craft completion. No item to carry around, no withdraw recipe — the burst is bounded.
+- The burst behaves like a temporary, building-less Pheromone Vent. The network's incoming biter stream (recruited and disgorged) is diverted to that position. Biters arriving at the spot attack engineer-aligned stuff there (vehicles, structures within the immediate area).
+- Once **X biters** have arrived (X = the same `attack_group_size` a default-mode Pheromone Vent uses, scaled by Attack Group Size tech), they form an autonomous attack group and disperse — the engine routes them onward toward player infrastructure.
+- Only one active pheromone burst exists at a time. Crafting **Release Pheromones** again before X have arrived **cancels** the previous gather (no group is dispatched). Crafting it after the group has already dispatched is fine — the new gather starts; the dispersed group runs its course independently.
 
 ## Pheromone Vent
 
