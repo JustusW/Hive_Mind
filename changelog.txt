@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.16
+Date: 2026-04-30
+  Changes:
+    - Creep edges are now slightly irregular instead of perfect Chebyshev squares. The two outermost rings of each hive/node fill at ~90% / ~65%, and a sparse extension ring (~30%) reaches one tile past the build box. Placement is gated by a deterministic per-tile hash, so the silhouette is stable across save/load and never grows fingers.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.15
 Date: 2026-04-30
   Bugfixes:

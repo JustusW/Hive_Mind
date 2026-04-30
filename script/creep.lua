@@ -40,6 +40,29 @@ local function is_blocked(name)
       or name:find("void",  1, true) ~= nil
 end
 
+-- Deterministic per-tile noise in [0, 1). Pure function of world (tx, ty),
+-- so save/load reproduces the exact same edge silhouette and creep growth
+-- doesn't drift between sessions.
+local function tile_noise(tx, ty)
+  local h = (tx * 73856093 + ty * 19349663) % 1000003
+  if h < 0 then h = h + 1000003 end
+  return h / 1000003
+end
+
+-- Edge fuzzing: probability that a tile at `layer` (Chebyshev distance from
+-- the centre) gets placed, given max_radius. Inside tiles (layer well below
+-- max) always place. The outermost two rings get progressively patchier,
+-- and a single ring beyond max_radius gets a sparse extension. Pure
+-- function of layer + tile position so the silhouette is stable.
+local function pass_edge_noise(layer, max_radius, tx, ty)
+  if layer <= max_radius - 2 then return true end
+  local n = tile_noise(tx, ty)
+  if layer == max_radius - 1 then return n > 0.10 end  -- 90% placed
+  if layer == max_radius     then return n > 0.35 end  -- ~65% placed
+  if layer == max_radius + 1 then return n > 0.70 end  -- ~30% placed (extension)
+  return false
+end
+
 -- Map a (layer, raw_step) cursor to a (dx, dy) offset on the ring. The
 -- raw_step is mapped through the prime stride to scatter the visit order.
 local function ring_offset(layer, step)
@@ -72,14 +95,18 @@ local function place_organic_creep(entity, record, max_radius, attempts)
   local step  = record.creep_step  or 0
 
   for _ = 1, attempts do
-    if layer > max_radius then break end
+    -- Stop one ring beyond max_radius — the extension ring is sparse and
+    -- gives the silhouette its irregular edge. Anything further would
+    -- look like fingers.
+    if layer > max_radius + 1 then break end
 
     local dx, dy = ring_offset(layer, step)
     local tx, ty = cx + dx, cy + dy
     local tile = surface.get_tile(tx, ty)
     if tile and tile.valid then
       local name = tile.name
-      if not shared.is_creep_tile(name) and not is_blocked(name) then
+      if not shared.is_creep_tile(name) and not is_blocked(name)
+         and pass_edge_noise(layer, max_radius, tx, ty) then
         tiles[#tiles + 1] = {name = shared.creep_tile, position = {tx, ty}}
         placed = placed + 1
       end

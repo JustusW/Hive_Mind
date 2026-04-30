@@ -180,6 +180,7 @@ Priority when picking the destination of a recruited biter:
 - Growth is a deterministic Chebyshev ring fill: each hive/node walks rings outward from its centre, layer 0 (centre) → layer N (the 8N tiles at Chebyshev distance N). Layer order traces a prime-stride permutation (1009) so within-ring placement looks scattered rather than a clockwise sweep, but the bound is the exact axis-aligned box.
 - Cursor (`creep_layer`, `creep_step`) lives on the hive's storage record and on each hive_node's record.
 - Water and void terminate growth at that tile but do not stop the ring.
+- Edge fuzzing: a deterministic per-tile hash (`tile_noise(tx, ty)` over world coordinates) gates placement on the outermost rings so the silhouette breaks free of a perfect square without producing fingers. Interior layers (layer ≤ max_radius − 2) always place. Layer max_radius − 1 places at ~90%, layer max_radius at ~65%, and a single extension ring at max_radius + 1 places at ~30%. The hash is pure over (tx, ty), so save/load reproduces the same edge pattern; growth stops one ring beyond max_radius.
 
 ## Hive Supremacy
 

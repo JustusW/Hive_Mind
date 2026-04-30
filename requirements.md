@@ -69,7 +69,7 @@ Each placeable item lists its pollution cost in its tooltip.
 - Connected hives and nodes share one resource pool.
 - Loading a save must preserve or recover hive/node connections; existing hives and nodes in the world remain connected to the construction, recruitment, and storage network.
 - **Node placement exception**: a Hive Node can be placed as long as it would connect to the network — i.e., the new node's own 50×50 box would overlap an existing hive or node — even if the placement position itself sits just outside the current network's build zone. All other buildings still require the placement position to be inside the network's build zone. Pheromone Vents are exempt — they are buildable anywhere.
-- A single purple **creep** tile fills the same box outward in Chebyshev rings. Biters move faster on creep.
+- A single purple **creep** tile fills the same box outward in Chebyshev rings. Biters move faster on creep. The outermost ~2 rings are progressively patchy, and a single sparse ring extends just past the box, so the silhouette has a slightly irregular, organic edge instead of a perfect square. The fuzzed pattern is stable across save/load.
 
 ## Recruitment
 
