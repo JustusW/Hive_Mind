@@ -55,16 +55,27 @@ end
 -- Strip every hm-pheromones item from a player. The item exists only as the
 -- recipe's result and has no in-world function — the recipe completion event
 -- is what triggers the burst, not "carrying the item".
+--
+-- All API touches on the player are inside pcall because hive directors run
+-- on the god controller, where a few inventory accessors behave differently
+-- than character-controller players and have raised in past versions.
 local function strip_pheromone_items(player)
   if not (player and player.valid) then return end
-  local cursor = player.cursor_stack
-  if cursor and cursor.valid_for_read and cursor.name == shared.items.pheromones then
-    cursor.clear()
-  end
-  local inv = player.get_main_inventory()
-  if inv then
-    inv.remove({name = shared.items.pheromones, count = inv.get_item_count(shared.items.pheromones)})
-  end
+  pcall(function()
+    local cursor = player.cursor_stack
+    if cursor and cursor.valid_for_read and cursor.name == shared.items.pheromones then
+      cursor.clear()
+    end
+  end)
+  pcall(function()
+    local inv = player.get_main_inventory()
+    if inv then
+      local n = inv.get_item_count(shared.items.pheromones)
+      if n and n > 0 then
+        inv.remove({name = shared.items.pheromones, count = n})
+      end
+    end
+  end)
 end
 
 local function start(s, surface_index, position)
@@ -164,14 +175,18 @@ end
 function M.tick()
   local s = State.get()
 
-  -- Defensive sweep: a player should never legitimately hold an
-  -- hm-pheromones item — the recipe is fire-and-forget and consumes the
-  -- result on craft. Older broken builds left strays in inventories. This
-  -- runs once per scan-cadence tick (cheap inventory query per joined
-  -- player) so saves loaded after the fix self-heal without a version
-  -- bump driving on_configuration_changed.
-  for player_index in pairs(s.joined_players) do
-    strip_pheromone_items(game.get_player(player_index))
+  -- One-shot migration: saves made under earlier broken builds may have
+  -- stranded hm-pheromones items in joined players' inventories. Runs
+  -- exactly once after the fix loads (gated on a storage flag) so it
+  -- doesn't re-scan every tick. Wrapped in pcall so a controller-specific
+  -- inventory quirk can't bring the mod down.
+  if not s.pheromone_v2_migrated then
+    pcall(function()
+      for player_index in pairs(s.joined_players) do
+        strip_pheromone_items(game.get_player(player_index))
+      end
+    end)
+    s.pheromone_v2_migrated = true
   end
 
   local burst = s.active_pheromone
