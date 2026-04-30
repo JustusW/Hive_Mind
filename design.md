@@ -40,6 +40,7 @@ Implementation choices and engine-level details that the requirements doc delibe
 | `hm-spitter-spawner` | vanilla `spitter-spawner` | Same proxy mechanic via `hm-spitter-spawner-ghost`. |
 | `hm-{tier}-worm` | vanilla `{tier}-worm-turret` | Same proxy mechanic, one ghost per tier. |
 | `hm-pollution-generator` | `hm-pollution-generator` | Debug pollution emitter, free to place. |
+| `hm-pheromone-vent` | `hm-pheromone-vent` | Recoloured hive-node prototype (deep-red tint). Hive force, no creep growth, no recruitment range, no storage, no construction zone. Buildable anywhere; no placement-zone check. Free to place. See "Pheromone vent" section. |
 
 ## Visual style
 
@@ -47,11 +48,11 @@ Every hive-side entity is a sprite swap. The hive itself uses a vendored copy of
 
 The vendored helper only exposes `hm-*` prototypes and asset paths under `__Hive_Mind_Reworked__`; it does not register `gleba-spawner` or `small-wriggler-pentapod`, so enabling Space Age alongside the mod does not create duplicate prototype-name conflicts.
 
-Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive storage = orange-red, biter spawner proxy = orange-red, spitter spawner proxy = lime, worm proxies = purple shades by tier.
+Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive storage = orange-red, biter spawner proxy = orange-red, spitter spawner proxy = lime, worm proxies = purple shades by tier, pheromone vent = deep red.
 
 Hive tracking is backed by runtime state but treats actual `hm-hive` and `hm-hive-node` entities on the hive force as authoritative recovery data. On load/config changes and before network-sensitive scans, the runtime reconciles state from the world: missing hives are linked back to a player bucket, missing nodes are restored to `hive_nodes`, invalid references are removed, and hive storage records are recreated without discarding valid chests. This keeps construction range, recruitment, creep growth, and one-hive replacement working after save/load.
 
-Crafting menu placement: pheromone toggle recipes live in the production tab via the `production-machine` subgroup. Every other hive recipe lives in the intermediate products tab via the `intermediate-product` subgroup.
+Crafting menu placement: pheromone toggle recipes and pheromone-vent mode markers (`hm-pheromone-mode-{small,default,large}`) live in the production tab via the `production-machine` subgroup. Every other hive recipe (including `hm-pheromone-vent`) lives in the intermediate products tab via the `intermediate-product` subgroup.
 
 When a joined player carries `hm-pheromones`, recruitment switches to that player as the target. On the same recruitment tick, every hive storage chest disgorges all stored creature items back into live units on the hive force and commands them toward the pheromone carrier. Pollution items stay in storage. Absorption is paused while pheromones are active so the freshly released units are not immediately swallowed again.
 
@@ -84,12 +85,65 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 
 ## Recruitment
 
-- `Creatures.tick_recruitment` runs every `shared.intervals.recruit` ticks. It scans for `type == "unit"` entities on the enemy and hive forces around every recruiter on the surface and reassigns matched units to the hive force, then commands them to walk somewhere.
+- Recruitment fires from the unified per-hive scan (see "Performance — unified scan"), not from a dedicated `intervals.recruit` cadence.
 - A "recruiter" is any hive or hive node. Recruit radius is `shared.ranges.hive * reach_factor` for hives and `shared.ranges.hive_node * reach_factor` for nodes, where `reach_factor = 1 + completed_attraction_reach_levels * shared.attraction_reach_step`.
-- Targeting:
-  - Pheromone player present → unit walks to the player's current position.
-  - Recruited from a hive → unit walks to that hive.
-  - Recruited from a node → unit walks to the nearest hive on the same surface (nodes have no chest, so absorption only happens at hives).
+
+### Token bucket
+
+- `state.recruit_buckets[network_key] = { tokens, last_tick, spawner_count, spawner_count_tick }`. Network key = smallest `unit_number` among hive + hive-node entities in the network. Pheromone vents are members of the network (resolved via placer) but do not contribute to the key — they have no recruit range and their lifecycle is tied to the placer's hive.
+- Trickle rate `R = spawner_count × recruit.per_spawner_per_second`.
+  - `spawner_count` = number of `unit-spawner` entities (any force) inside the network's recruit-box union (hive 100×100 + hive-node 50×50 only; pheromone vents contribute zero box).
+  - Refresh on the unified scan tick that owns the network's anchor hive. Cache between refreshes; recompute on `on_configuration_changed`.
+- Refill on each scan tick: `tokens = min(cap, tokens + R × dt)`, `dt = (tick - last_tick) / 60`. `cap = recruit.bucket_cap_factor × R`. When `R` changes, `tokens` clamps to the new cap.
+- Per candidate:
+  - `is_group = unit.commandable and unit.commandable.group and unit.commandable.group.valid`.
+  - `is_group` → recruit, no token cost.
+  - else if `tokens >= 1` → decrement, recruit.
+  - else → skip cleanly (no force flip, no command).
+- Force flip + command issue stay atomic per unit.
+- Stale keys pruned on `on_configuration_changed`. New networks start at full cap.
+
+### Destination resolution
+
+Priority when picking the destination of a recruited biter:
+
+1. Pheromone player.
+2. Closest pheromone vent **to the recruited unit** on the recruiter's network with `gather_count < attack_group_size_for(vent)`.
+3. Hive (recruiter is a hive, target is the hive).
+4. Hive node fallback (recruiter is a hive node, target is the nearest hive on the surface — nodes have no chest, so absorption only happens at hives).
+
+## Pheromone vent
+
+- Tracked: `state.pheromone_vents[unit_number] = { entity, placer_player_index, gather_count, seen_units, mode }`.
+
+### Network membership via placer
+
+- At placement, `placer_player_index` is captured from `event.player_index` and stored. The vent's runtime network is resolved on demand by looking up the placer's current hive: `state.hives_by_player[placer_player_index]` → first hive → its `network_key`.
+- If the placer has no hive at placement time, the vent is destroyed on the same tick (`entity.destroy({ raise_destroy = true })` and a chat message). No tracking entry is written.
+- If the placer's hive is later destroyed without replacement, the vent is collected as part of the network-collapse pass (its resolved network has no surviving hive → orphaned → destroyed).
+- If the placer repositions the hive (mine + place), the vent's resolved network follows the new hive automatically — no per-vent migration step needed because lookup is dynamic.
+
+### Gathering and dispatch
+
+- Arrival scan runs on the unified-scan cadence (see "Performance — unified scan"). Each tick processes a fraction of vents on a rotating index. Per processed vent: one `find_entities_filtered{ position = vent.position, radius = pheromone_vent.arrival_radius, force = hive_force, type = "unit" }`. For each unit not yet in `seen_units`: add it, `gather_count += 1`.
+- When `gather_count >= attack_group_size_for(vent)`:
+  - `group = surface.create_unit_group{ position = vent.position, force = hive_force }`.
+  - For each in-radius hive-force unit (re-scanned at dispatch time): `group:add_member(unit)`.
+  - `group:start_moving()` with no destination — engine routes via attack-group AI.
+  - `gather_count = 0`; `seen_units = {}`.
+
+### Modes
+
+- `mode ∈ {small, default, large}`.
+- `tech_adjusted_base = pheromone_vent.base_size + pheromone_vent.tech_increment × completed_levels`.
+- `attack_group_size_for(vent) = round(tech_adjusted_base × pheromone_vent.mode_factor[vent.mode])`.
+- `mode_factor = { small = 0.5, default = 1.0, large = 2.0 }`.
+- Set via marker recipes `hm-pheromone-mode-{small,default,large}` consumed on the vent. No GUI.
+
+### Pheromone vent risks
+
+- **Friendly fire on dispatch**: hive force is friend with enemy. A group started with no destination defaults to attacking polluted chunks. Verify the engine doesn't path them at vanilla nests; if it does, tighten via `command.target_filter` or a force-friendship override. Test with a debug recipe before shipping.
+- **Disconnect**: vent's `placer_player_index` resolves via `state.hives_by_player`; if the player's hive entry persists across disconnect the vent keeps working, otherwise it's orphaned on the next collapse pass.
 
 ## Build cost
 
@@ -129,15 +183,16 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 
 ## Hive Supremacy
 
-When `hm-hive-supremacy` is researched, a per-tick scan inflicts damage on anything standing on the hive's creep tile that isn't an approved inhabitant.
+When `hm-hive-supremacy` is researched, a damage tick inflicts damage on anything standing on the hive's creep tile that isn't an approved inhabitant.
 
 - Tech is a single-shot manual research; recipe-style gating only — no in-progress effect, no infinite scaling.
-- A new module `script/supremacy.lua` runs every `shared.intervals.supremacy` ticks (1s). It iterates all surfaces with at least one hive on the hive force; on each surface it queries `find_entities_filtered{ collision_mask = ..., type = {"tree", "container", "assembling-machine", ...} }` over a sparse grid of creep tiles, then filters by `surface.get_tile(pos).name == shared.creep_tile`.
 - An entity is **immune** if any of these hold: `entity.force == hive force`, or `entity.type` is in `{"unit","unit-spawner","turret"}` AND its name is a vanilla biter / spitter / spawner / worm-turret, or the entity's prototype is a hive prototype (`shared.entities.*`).
-- Damage is applied as `entity.damage(amount, hive_force, "physical")` per tick, with amount tuned so a default tree dies in ~`shared.supremacy.tree_lifetime_ticks` ticks (≈30s) and a default building in ~`shared.supremacy.building_lifetime_ticks` ticks (≈60s). Lifetime → DPS conversion uses each prototype's max_health: `dps = max_health / lifetime_seconds`.
+- Damage cadence: `intervals.supremacy = 60` ticks. Candidate scan cadence: `supremacy.candidate_scan = 600` ticks per hive.
+- Cache: `state.supremacy_candidates[hive_unit_number] = { [entity_unit_number] = { entity, lifetime_seconds, is_tree, pollution_burst } }`.
+- **Damage tick** walks the cached set, drops `not entity.valid`, runs a chunk-bbox creep check (no per-entity `surface.get_tile`), and applies `entity.damage(amount, hive_force, "physical")`. Amount is tuned so a default tree dies in ~`shared.supremacy.tree_lifetime` seconds (≈30s) and a default building in ~`shared.supremacy.building_lifetime` seconds (≈60s). Lifetime → per-tick damage uses each prototype's `max_health` and the cadence: `damage_per_tick = max_health / (lifetime_seconds × calls_per_second)`.
+- **Candidate scan** rebuilds the cache from `find_entities_filtered{ area, force = {player, neutral} }` over each hive's bbox — entities outside the recruit-box union never appear. Piggy-backs on the unified scan when cadences align (every 10th unified scan).
 - Trees: when supremacy kills a tree we read its prototype's `emissions_per_second` / `pollution` field if present, otherwise fall back to `shared.supremacy.tree_pollution_default`, and call `surface.pollute(position, amount)` so the world's vanilla pollution map absorbs it. The hive's resource pool is **not** directly credited; the burst feeds recruitment via vanilla pollution-driven spawner activity.
-- Performance: rather than scanning every creep tile each tick (potentially millions), the loop samples one entity-find per hive's bounding box and lets `find_entities_filtered` do the heavy lifting. Damage is batched in a single pass per surface.
-- The tech itself: `hm-hive-supremacy` lives in `data/prototypes/technologies.lua`, costs `shared.science.supremacy_pack_count` Pollution Science Packs, prerequisite `hm-hive-labs`, single `nothing` effect with the localised description.
+- The tech itself: `hm-hive-supremacy` lives in `data/prototypes/technologies.lua`, costs `shared.supremacy.research_packs` Pollution Science Packs, prerequisite `hm-hive-labs`, single `nothing` effect with the localised description.
 
 ## Eligibility registry
 
@@ -156,8 +211,80 @@ When `hm-hive-supremacy` is researched, a per-tick scan inflicts damage on anyth
 - Hive Labs (auto-researched on first creep spread) unlocks Hive Labs.
 - Worm tier techs are researched manually, gated in order.
 - `hm-attraction-reach` is infinite: each completed level adds `shared.attraction_reach_step` (10%) to the recruitment radius. The effect is applied at runtime in `script/creatures.lua`; the `nothing` effect on the prototype is purely for the GUI description.
+- `hm-pheromone-vent` is a single-shot tech, prerequisite `hm-worms-small`, that unlocks the `hm-pheromone-vent` recipe.
+- `hm-attack-group-size` is infinite, prerequisite `hm-pheromone-vent`. Each completed level adds `pheromone_vent.tech_increment` (default 2) to `pheromone_vent.base_size`. Read at dispatch time as `tech_adjusted_base = base_size + tech_increment × completed_levels`. The `nothing` effect on the prototype is purely for the GUI description.
+
+## Performance — unified scan, work-spread
+
+- Cadence target: `intervals.scan = 60` ticks (1s). Replaces today's `intervals.recruit = 120` and `intervals.absorb = 30` — recruit and absorb fire from the unified scan instead. Other intervals (`intervals.workers`, `intervals.creep`, `intervals.labels`, `intervals.loadout`, `intervals.supply`) are unchanged.
+- Each tick processes `ceil(N / T)` network members (hives + hive-nodes) on a rotating index, sorted deterministically by `unit_number`. N = total hives + hive-nodes. Per-tick scan count constant relative to network size — no moloch supertick.
+- Per processed member: one `find_entities_filtered` over its bbox; in-Lua dispatch to recruit / absorb / supremacy candidate registration / spawner counting (for the trickle rate of the member's network).
+- Pheromone-vent arrival scan runs on the same cadence and work-spreading: each tick processes `ceil(V / T)` vents (V = total pheromone vents). Per processed vent: one `find_entities_filtered{ position = vent.position, radius = pheromone_vent.arrival_radius, force = hive_force, type = "unit" }`.
+
+### Cross-hive aggregation
+
+- Pre-bucket hives by surface once per scan tick.
+- For force=`{player, neutral}` scans (supremacy, vent intake), do one combined scan per surface; dispatch to hives in Lua. Reduces engine ↔ Lua boundary crossings.
+
+## Performance — node absorption
+
+- `tick_absorption` iterates hives **and** hive nodes.
+- Nodes have no chest of their own; absorbed creatures are inserted into the network's primary chest (smallest `unit_number` hive in the network).
+- Reuse existing `is_for_role` filter.
+
+## Performance — workers from nodes
+
+- `Workers.tick()` spawn entity = closest in-network hive **or** hive node to the ghost.
+- Shared `find_non_colliding_position` helper for hive + node spawn points.
+
+## Performance — caching and lazy ticks
+
+- `node_data.nearest_hive_unit_number`: cache. Invalidate on hive build / death and on `on_configuration_changed`. Lazy recompute on stale.
+- `Workers.tick()`: skip when `state.worker_jobs` is empty AND no hive-force ghosts exist on any surface.
+
+## Network collapse
+
+- Trigger: `Death.on_removed` for a `hm-hive`.
+- Surviving-hive detection must use `Hive.all()`, not just `s.hives_by_player`. `Hive.all()` queries the surface and picks up a just-placed-but-untracked replacement hive. Using only player-bucket state would falsely collapse the network on every legitimate repositioning (the new hive is in the world but not yet `Hive.track`'d at the moment `Death.on_removed` runs).
+- Connectivity walk starts from each surviving hive, not from the destroyed hive's neighbours. Orphan set = `(all hive-force buildings on surface) − (union of network components of surviving hives)`. New hive close enough → old neighbours stay reachable, no orphans. New hive too far → old neighbours genuinely orphaned. No replacement → all orphaned.
+- Pheromone vents are matched into the orphan set by resolving each vent's `placer_player_index` → placer's current hive → that hive's network. Vents whose placer has no surviving hive (or whose placer's hive is in an orphaned component) are orphaned.
+- Orphan scope is hive force only. Player-placed spawners / worms live on the enemy force after the build-time swap and survive the collapse as ordinary vanilla nests/turrets.
+- For each orphaned entity (all on hive force):
+  - Hive nodes, pheromone vents, hive labs, hive storage chests: `entity.destroy({ raise_destroy = true })` so removal flows through the existing pipeline. Hive storage: release creature contents as live units first.
+  - Hive workers (in flight or idle) on the orphaned network: `entity.die()` so worker-death cleanup runs.
+- Drop `state.recruit_buckets[orphan_key]` and `state.pheromone_vents[orphan_unit_number]` for orphaned members.
+- Re-resolve any other network keys that share a `network_key` with the orphan, in case the collapse changed the smallest-unit_number anchor.
+
+## Telemetry
+
+Two log lines, both gated on the existing Debug enable flag, written to `script-output/hm-debug.txt`.
+
+```
+[recruit] tick=N networks=K tokens=[t1,t2,...] R=[r1,r2,...] spawners=[s1,s2,...] group=G trickle=T skipped=S
+[perf]    tick=N scanned=M recruit_ms=… absorb_ms=… supremacy_ms=… workers_ms=… creep_ms=… total_ms=…
+```
+
+`scanned` is how many network members (hives + hive-nodes) the unified scan processed this tick — work-spreading visibility.
+
+## Tunables (shared.lua)
+
+| Name | Default | Notes |
+|---|---|---|
+| `recruit.per_spawner_per_second` | 0.05 | trickle rate per spawner in network range |
+| `recruit.bucket_cap_factor` | 5 | bucket cap = 5 × R, where R = spawner_count × per_spawner_per_second |
+| `recruit.gate_attack_groups` | false | attack-group biters bypass bucket |
+| `intervals.scan` | 60 | unified scan cadence |
+| `intervals.supremacy` | 60 | damage cadence |
+| `supremacy.candidate_scan` | 600 | candidate rebuild cadence per hive |
+| `supremacy.tree_lifetime` | 30 | tree death time on creep, in seconds |
+| `supremacy.building_lifetime` | 60 | building death time on creep, in seconds |
+| `supremacy.research_packs` | 200 | hm-hive-supremacy science cost |
+| `pheromone_vent.base_size` | 5 | base attack-group size |
+| `pheromone_vent.tech_increment` | 2 | per level |
+| `pheromone_vent.mode_factor` | `{small=0.5, default=1.0, large=2.0}` | |
+| `pheromone_vent.arrival_radius` | 3 | tiles |
 
 ## Debug fixtures
 
 - **Pollution Vent** (`hm-pollution-generator`): an iron-chest reskin that emits world pollution at ~1000 active drills' worth per tick. Recipe is currently always available; gate behind a startup setting before shipping.
-- **`script-output/hm-debug.txt`**: appended once per recruit tick. Should also be gated.
+- **`script-output/hm-debug.txt`**: appended once per scan tick. Should also be gated.
