@@ -35,6 +35,12 @@ end
 
 function M.is_for_role(entity, role)
   if not (entity and entity.valid) then return false end
+  -- Hive-side internal units (workers in particular) are not part of the
+  -- creature economy. Excluding them here keeps absorption from trying to
+  -- file a worker as `hm-creature-hm-hive-worker` (no such item exists,
+  -- non-recoverable engine error) and keeps recruitment from overriding
+  -- a worker's go_to_location command mid-route.
+  if entity.name == shared.entities.hive_worker then return false end
   if has_registered_role(entity.name, role) then return true end
   return entity.type == "unit"
 end
@@ -83,9 +89,15 @@ local function absorb_units_into_hive(entity)
     if unit.valid
        and (unit.force == enemy_force or unit.force == hive_force)
        and M.is_for_role(unit, shared.creature_roles.store) then
+      -- Defensive: only absorb units that actually have a registered
+      -- creature item. Without this guard, a unit type with no matching
+      -- hm-creature-* item raises a non-recoverable engine error inside
+      -- inv.insert and tears down the whole on_tick chain.
       local item_name = shared.creature_item_name(unit.name)
-      unit.destroy({raise_destroy = true})
-      inv.insert{name = item_name, count = 1}
+      if prototypes.item[item_name] then
+        unit.destroy({raise_destroy = true})
+        inv.insert{name = item_name, count = 1}
+      end
     end
   end
 end
