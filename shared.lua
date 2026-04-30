@@ -194,6 +194,20 @@ shared.science =
   pollution_per_pack = 25
 }
 
+-- Recruitment throttling (0.9.0). The hive vacuums up biters at a rate that
+-- scales with how many spawners (any force, hive-placed or wild) sit inside
+-- the network's recruit-box union. Attack-group biters bypass the bucket.
+shared.recruit =
+{
+  -- Trickle rate per spawner per second.
+  per_spawner_per_second = 0.05,
+  -- Token bucket cap = factor × R, where R = spawner_count × per_spawner_per_second.
+  bucket_cap_factor = 5,
+  -- When true, attack-group biters also consume tokens. Default false:
+  -- pollution-driven biters bypass the throttle.
+  gate_attack_groups = false
+}
+
 -- Hive Supremacy: damage applied to non-hive entities standing on creep,
 -- once researched. Lifetimes in seconds (the scan runs every
 -- shared.intervals.supremacy ticks); damage per tick is computed from each

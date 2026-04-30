@@ -15,6 +15,9 @@ local M = {}
 local timings = {}
 local scanned = 0
 
+-- Per-flush counters for the [recruit] line.
+local recruit_counts = { group = 0, trickle = 0, skipped = 0 }
+
 local function fmt_ms(seconds)
   return string.format("%.3f", (seconds or 0) * 1000)
 end
@@ -49,21 +52,51 @@ function M.bump_scanned(n)
   scanned = scanned + (n or 1)
 end
 
--- Append a [recruit] telemetry line. Caller passes already-shaped arrays.
-function M.recruit(args)
-  if not (args and args.tick) then return end
+-- Bump a per-flush recruit counter. Categories: "group" / "trickle" / "skipped".
+function M.bump_recruit(category)
+  if recruit_counts[category] ~= nil then
+    recruit_counts[category] = recruit_counts[category] + 1
+  end
+end
+
+-- Append a [recruit] telemetry line and reset the per-flush counters. Reads
+-- the current bucket state directly from `state.recruit_buckets` so the line
+-- always reflects ground truth at flush time.
+function M.flush_recruit(tick)
+  local State = require("script.state")
+  local s = State.get()
+  local buckets = s.recruit_buckets or {}
+
+  -- Stable order: sort by network key so successive lines line up across
+  -- ticks even as networks form and dissolve.
+  local keys = {}
+  for k in pairs(buckets) do keys[#keys + 1] = k end
+  table.sort(keys)
+
+  local tokens, Rs, spawners = {}, {}, {}
+  for _, k in ipairs(keys) do
+    local b = buckets[k]
+    tokens[#tokens + 1]   = b.tokens or 0
+    spawners[#spawners + 1] = b.spawner_count or 0
+    Rs[#Rs + 1] = (b.spawner_count or 0) * (require("shared").recruit.per_spawner_per_second)
+  end
+
   local line = string.format(
     "[recruit] tick=%d networks=%d tokens=%s R=%s spawners=%s group=%d trickle=%d skipped=%d",
-    args.tick,
-    args.networks or 0,
-    arr_to_str(args.tokens),
-    arr_to_str(args.R),
-    arr_to_str(args.spawners),
-    args.group or 0,
-    args.trickle or 0,
-    args.skipped or 0
+    tick,
+    #keys,
+    arr_to_str(tokens),
+    arr_to_str(Rs),
+    arr_to_str(spawners),
+    recruit_counts.group   or 0,
+    recruit_counts.trickle or 0,
+    recruit_counts.skipped or 0
   )
   helpers.write_file("hm-debug.txt", line .. "\n", true)
+
+  recruit_counts.group   = 0
+  recruit_counts.trickle = 0
+  recruit_counts.skipped = 0
 end
 
 -- Append a [perf] line for the cadence window and reset accumulators.

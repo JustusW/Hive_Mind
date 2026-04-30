@@ -5,10 +5,12 @@
 -- participate in the hive economy. By default any entity with type == "unit"
 -- is eligible.
 
-local shared = require("shared")
-local State  = require("script.state")
-local Force  = require("script.force")
-local Hive   = require("script.hive")
+local shared    = require("shared")
+local State     = require("script.state")
+local Force     = require("script.force")
+local Hive      = require("script.hive")
+local Network   = require("script.network")
+local Telemetry = require("script.telemetry")
 
 local M = {}
 
@@ -252,11 +254,75 @@ function M.cached_nearest_hive(node, hives)
   return h
 end
 
+-- True if `unit` is currently part of an engine attack group (pollution-
+-- driven). These bypass the trickle bucket — recruiting them feels
+-- proportional to the player's pollution emission.
+local function is_attack_group_member(unit)
+  local c = unit.commandable
+  if not c then return false end
+  local g = c.group
+  return g ~= nil and g.valid
+end
+
+-- Resolve and refresh the recruit bucket for the network containing
+-- `member`. Returns nil if no network resolves (shouldn't happen for hives,
+-- can happen for orphaned nodes mid-collapse).
+local function bucket_for_member(member, ctx)
+  if not (member and member.valid) then return nil end
+  local network = Network.resolve_at(member.surface, member.position)
+  if not network or not network.key then return nil end
+
+  local s = ctx.state
+  s.recruit_buckets = s.recruit_buckets or {}
+  local bucket = s.recruit_buckets[network.key]
+  if not bucket then
+    bucket = {
+      tokens             = 0,
+      last_tick          = ctx.tick,
+      spawner_count      = 0,
+      spawner_count_tick = nil
+    }
+    s.recruit_buckets[network.key] = bucket
+  end
+
+  -- Refresh spawner count when we're processing the network's anchor
+  -- (smallest unit_number). One unit-spawner scan over the bbox union per
+  -- network per refresh cycle — cheap relative to per-member scans.
+  if member.unit_number == network.key and network.bbox then
+    bucket.spawner_count = #member.surface.find_entities_filtered{
+      area = network.bbox,
+      type = "unit-spawner"
+    }
+    bucket.spawner_count_tick = ctx.tick
+  end
+
+  -- Refill tokens.
+  local R   = bucket.spawner_count * shared.recruit.per_spawner_per_second
+  local cap = R * shared.recruit.bucket_cap_factor
+  local dt  = (ctx.tick - bucket.last_tick) / 60
+  if dt < 0 then dt = 0 end
+  bucket.tokens    = math.min(cap, bucket.tokens + R * dt)
+  bucket.last_tick = ctx.tick
+
+  -- Newly-formed networks start at full cap so a freshly-built hive isn't
+  -- rate-limited from t=0.
+  if bucket.spawner_count_tick == nil and bucket.tokens == 0 and cap > 0 then
+    bucket.tokens = cap
+  end
+
+  return bucket, network
+end
+
 -- Recruit (and reassign) any eligible units inside `radius` of `recruiter`,
 -- commanding each toward `target`. `target` is either an entity (walked to
 -- via go_to_location with radius 5) or a position table {position = {...}}
 -- (walked to via go_to_location with radius 1, used for pheromone players).
-local function recruit_around(recruiter, radius, target, enemy_force, hive_force)
+--
+-- 0.9.0: per-candidate gate. Attack-group members bypass; else require a
+-- token from the network's bucket.
+local function recruit_around(recruiter, radius, target, ctx, bucket)
+  local enemy_force = ctx.enemy_force
+  local hive_force  = ctx.hive_force
   local units = recruiter.surface.find_entities_filtered{
     position = recruiter.position, radius = radius, type = "unit"
   }
@@ -264,11 +330,23 @@ local function recruit_around(recruiter, radius, target, enemy_force, hive_force
     if unit.valid
        and (unit.force == enemy_force or unit.force == hive_force)
        and M.is_for_role(unit, shared.creature_roles.attract) then
-      if unit.force == enemy_force then unit.force = hive_force end
-      if target.position then
-        command_unit_to_position(unit, target.position)
+      local bypass = (not shared.recruit.gate_attack_groups)
+                     and is_attack_group_member(unit)
+      local recruit = bypass
+      if not bypass and bucket and bucket.tokens >= 1 then
+        bucket.tokens = bucket.tokens - 1
+        recruit = true
+      end
+      if recruit then
+        if unit.force == enemy_force then unit.force = hive_force end
+        if target.position then
+          command_unit_to_position(unit, target.position)
+        else
+          command_unit_to_entity(unit, target.entity)
+        end
+        Telemetry.bump_recruit(bypass and "group" or "trickle")
       else
-        command_unit_to_entity(unit, target.entity)
+        Telemetry.bump_recruit("skipped")
       end
     end
   end
@@ -291,6 +369,7 @@ function M.recruit_setup_tick()
   local s = State.get()
   return {
     state            = s,
+    tick             = game.tick,
     enemy_force      = enemy_force,
     hive_force       = hive_force,
     factor           = reach_factor(hive_force),
@@ -304,6 +383,10 @@ end
 function M.recruit_at_member(entity, kind, ctx)
   if not (entity and entity.valid and ctx) then return end
 
+  -- Resolve and refresh the network's recruit bucket. Anchor refresh of
+  -- spawner_count happens here when `entity.unit_number == network.key`.
+  local bucket = bucket_for_member(entity, ctx)
+
   if kind == "hive" then
     if ctx.pheromone_player then
       disgorge_hive_units(entity, ctx.pheromone_player.position, ctx.hive_force)
@@ -312,7 +395,7 @@ function M.recruit_at_member(entity, kind, ctx)
                  and {position = ctx.pheromone_player.position}
                  or  {entity = entity}
     local radius = shared.ranges.hive * ctx.factor
-    recruit_around(entity, radius, target, ctx.enemy_force, ctx.hive_force)
+    recruit_around(entity, radius, target, ctx, bucket)
   elseif kind == "hive_node" then
     local target
     if ctx.pheromone_player then
@@ -320,16 +403,13 @@ function M.recruit_at_member(entity, kind, ctx)
     else
       local hive = M.cached_nearest_hive(entity, ctx.hives)
       if hive then
-        -- Redirect to nearest hive — the node itself becomes the
-        -- absorption point in step 3a, but pathing target stays the
-        -- nearest hive so disgorged units have somewhere to go when
-        -- pheromones come back online.
+        -- Target is the node itself; node-side absorption picks it up.
         target = {entity = entity}
       end
     end
     if target then
       local radius = shared.ranges.hive_node * ctx.factor
-      recruit_around(entity, radius, target, ctx.enemy_force, ctx.hive_force)
+      recruit_around(entity, radius, target, ctx, bucket)
     end
   end
 end

@@ -46,8 +46,11 @@ local function on_tick(event)
 
   Debug.tick()
 
-  -- Flush perf line on the unified scan cadence.
-  if tick % shared.intervals.scan == 0 then Telemetry.flush_perf(tick) end
+  -- Flush perf + recruit lines on the unified scan cadence.
+  if tick % shared.intervals.scan == 0 then
+    Telemetry.flush_recruit(tick)
+    Telemetry.flush_perf(tick)
+  end
 end
 
 -- ── Lifecycle ────────────────────────────────────────────────────────────────

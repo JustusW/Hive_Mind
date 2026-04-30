@@ -124,4 +124,83 @@ function M.insert(surface, position, item_stack)
   return false
 end
 
+-- Resolve the full network at `position` on `surface`. Returns a table with:
+--   key         number — smallest unit_number among hive + node members (stable).
+--   hives       LuaEntity[]
+--   nodes       LuaEntity[]
+--   members     {entity, range, kind}[]  — same shape as all_structures.
+--   bbox        {{x_min, y_min}, {x_max, y_max}}  — recruit-box union.
+-- Or nil if no member's range covers the position.
+function M.resolve_at(surface, position)
+  local structs = M.all_structures(surface)
+  if #structs == 0 then return nil end
+
+  local in_net = {}
+  for i, st in ipairs(structs) do
+    local dx = st.entity.position.x - position.x
+    local dy = st.entity.position.y - position.y
+    if dx * dx + dy * dy <= st.range * st.range then
+      in_net[i] = true
+    end
+  end
+  if not next(in_net) then return nil end
+
+  local changed = true
+  while changed do
+    changed = false
+    for i, st in ipairs(structs) do
+      if not in_net[i] then
+        for j in pairs(in_net) do
+          local m = structs[j]
+          local dx = st.entity.position.x - m.entity.position.x
+          local dy = st.entity.position.y - m.entity.position.y
+          local touch = st.range + m.range
+          if dx * dx + dy * dy <= touch * touch then
+            in_net[i] = true
+            changed = true
+            break
+          end
+        end
+      end
+    end
+  end
+
+  local hives, nodes, members = {}, {}, {}
+  local x_min, y_min, x_max, y_max
+  for i in pairs(in_net) do
+    local st = structs[i]
+    members[#members + 1] = st
+    if st.kind == "hive" then
+      hives[#hives + 1] = st.entity
+    else
+      nodes[#nodes + 1] = st.entity
+    end
+    local px, py = st.entity.position.x, st.entity.position.y
+    local r = st.range
+    if not x_min then
+      x_min, y_min, x_max, y_max = px - r, py - r, px + r, py + r
+    else
+      if px - r < x_min then x_min = px - r end
+      if py - r < y_min then y_min = py - r end
+      if px + r > x_max then x_max = px + r end
+      if py + r > y_max then y_max = py + r end
+    end
+  end
+
+  -- Stable network key: smallest unit_number among hive + node members.
+  local key
+  for _, m in ipairs(members) do
+    local id = m.entity.unit_number
+    if id and (not key or id < key) then key = id end
+  end
+
+  return {
+    key     = key,
+    hives   = hives,
+    nodes   = nodes,
+    members = members,
+    bbox    = {{x_min, y_min}, {x_max, y_max}}
+  }
+end
+
 return M

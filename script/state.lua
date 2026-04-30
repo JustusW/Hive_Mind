@@ -10,6 +10,8 @@
 --   hive_roles           [entity_name][role]         = true
 --   scan_cursor          number (rotating index for the unified scan, 0.9.0)
 --   supremacy_candidates [member_unit_number] = { last_scan_tick, entries[entity_unit_number] = {...} }
+--   recruit_buckets      [network_key]        = { tokens, last_tick, spawner_count, spawner_count_tick }
+--   telemetry_recruit    transient counters reset on scan flush
 --
 -- All state lives under storage.hive_reboot. `storage` is the Factorio 2.0
 -- name; `global` is kept as a fallback for older runtimes.
@@ -42,6 +44,7 @@ function M.get()
   if not state.hive_storage          then state.hive_storage          = {} end
   if state.scan_cursor               == nil then state.scan_cursor    = 0  end
   if not state.supremacy_candidates  then state.supremacy_candidates  = {} end
+  if not state.recruit_buckets       then state.recruit_buckets       = {} end
   return state
 end
 
