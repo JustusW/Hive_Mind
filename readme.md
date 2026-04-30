@@ -59,6 +59,3 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for helper scripts and the isolated dev pro
 - [HIVE_REBOOT_REQUIREMENTS.md](HIVE_REBOOT_REQUIREMENTS.md) — player-facing intent.
 - [HIVE_DESIGN.md](HIVE_DESIGN.md) — implementation choices and engine details.
 
-## Legacy reference
-
-The original Hive Mind 2.0 port is archived under [legacy/hive-mind-2.0-port-reference](legacy/hive-mind-2.0-port-reference) for art/balance reference only.

@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.2
+Date: 2026-04-30
+  Bugfixes:
+    - Fixed mod failing to load with "Missing sound: __Hive_Mind_Reworked__/legacy/.../creep-01.ogg". The 8 creep walking sounds are now vendored under sound/creep/ and shipped with the release.
+    - Removed the legacy/hive-mind-2.0-port-reference archive from the repo; it was excluded from the package and only pulled the build into a broken state.
+---------------------------------------------------------------------------------------------------
 Version: 0.7.1
 Date: 2026-04-30
   Changes:

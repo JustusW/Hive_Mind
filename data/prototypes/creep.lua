@@ -16,12 +16,12 @@ creep.absorptions_per_second = {}
 creep.walking_speed_modifier = 1.3
 creep.needs_correction = false
 
--- Reuse the legacy creep walking sounds for now; harmless if missing at runtime.
+-- Creep walking sounds, vendored from the original Hive Mind port.
 creep.walking_sound = {}
 for k = 1, 8 do
   creep.walking_sound[k] =
   {
-    filename = "__Hive_Mind_Reworked__/legacy/hive-mind-2.0-port-reference/data/tiles/creep-0" .. k .. ".ogg"
+    filename = "__Hive_Mind_Reworked__/sound/creep/creep-0" .. k .. ".ogg"
   }
 end
 

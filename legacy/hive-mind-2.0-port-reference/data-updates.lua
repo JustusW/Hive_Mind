@@ -1,1 +1,0 @@
-require("data_updates/data_updates")
