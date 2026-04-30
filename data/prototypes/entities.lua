@@ -32,20 +32,50 @@ local roboport_proto = data.raw["roboport"]["roboport"]
 local lab_proto      = data.raw["lab"]["lab"]
 local chest_proto    = data.raw["logistic-container"]["passive-provider-chest"]
 
--- Return a deep-copied biter-spawner Animation suitable for assignment to any
--- Animation field. Handles both 2.0 (graphics_set.animations) and the older
--- (animations) prototype shapes.
-local function spawner_animation()
-  local source = (spawner_proto.graphics_set and spawner_proto.graphics_set.animations)
-              or spawner_proto.animations
-  -- AnimationVariations is an array of Animations. Take the first variant.
+-- Egg raft: gleba-spawner from Space Age. Falls back to biter-spawner so the
+-- mod still loads in profiles where space-age isn't enabled.
+local egg_raft_proto = data.raw["unit-spawner"]["gleba-spawner"] or spawner_proto
+
+-- Return a deep-copied Animation from `proto`'s spawner-shaped graphics.
+-- Handles both 2.0 (graphics_set.animations) and the older (animations)
+-- prototype shapes, and picks the first variant.
+local function animation_from(proto)
+  local source = (proto.graphics_set and proto.graphics_set.animations)
+              or proto.animations
   if source and source[1] then return table.deepcopy(source[1]) end
   return table.deepcopy(source)
+end
+
+local function spawner_animation()
+  return animation_from(spawner_proto)
+end
+
+-- Recursively multiply the `scale` field of every leaf in a sprite tree.
+-- Mirrors tint_sprite's traversal so all the same shapes are covered.
+local function rescale_sprite(t, factor)
+  if type(t) ~= "table" then return end
+  if t.scale then t.scale = t.scale * factor end
+  if t.hr_version then rescale_sprite(t.hr_version, factor) end
+  if t.layers then for _, l in pairs(t.layers) do rescale_sprite(l, factor) end end
+  if t.sheets then for _, s in pairs(t.sheets) do rescale_sprite(s, factor) end end
+  if t.sheet  then rescale_sprite(t.sheet, factor) end
+  for _, dir in pairs{"north","south","east","west"} do
+    if t[dir] then rescale_sprite(t[dir], factor) end
+  end
 end
 
 local function tinted_spawner_anim(tint)
   local anim = spawner_animation()
   tint_sprite(anim, tint)
+  return anim
+end
+
+-- Tinted, optionally rescaled animation for the hive (egg raft). Uses
+-- gleba-spawner when available, otherwise biter-spawner.
+local function tinted_egg_raft_anim(tint, scale)
+  local anim = animation_from(egg_raft_proto)
+  if scale and scale ~= 1 then rescale_sprite(anim, scale) end
+  if tint then tint_sprite(anim, tint) end
   return anim
 end
 
@@ -72,7 +102,7 @@ local col_node = {r = 0.10, g = 0.75, b = 0.45, a = 1}
 local col_lab  = {r = 0.55, g = 0.10, b = 0.85, a = 1}
 
 -- ── Hive ─────────────────────────────────────────────────────────────────────
--- Roboport mechanics. Visual: tinted biter-spawner.
+-- Roboport mechanics. Visual: scaled-up egg raft (gleba-spawner) tinted hive.
 
 local hive = table.deepcopy(roboport_proto)
 hive.name                  = shared.entities.hive
@@ -94,14 +124,17 @@ hive.recharge_minimum      = "1MJ"
 hive.icon                  = spawner_proto.icon
 hive.icon_size             = spawner_proto.icon_size
 hive.icons                 = nil
--- Sprite swap: hide every roboport-shaped visual, then overlay a tinted spawner.
+-- Sprite swap: hide every roboport-shaped visual, then overlay a tinted,
+-- scaled-up egg raft (gleba-spawner). 2× scale gives a sprite that visibly
+-- dominates the 4×4 roboport footprint without poking past the construction
+-- ring.
 hide_sprite(hive.base)
 hide_sprite(hive.base_patch)
 hide_sprite(hive.door_animation_up)
 hide_sprite(hive.door_animation_down)
 hide_sprite(hive.recharging_animation)
 hive.recharging_light      = nil
-hive.base_animation        = tinted_spawner_anim(col_hive)
+hive.base_animation        = tinted_egg_raft_anim(col_hive, 2.0)
 
 -- ── Hive Node ─────────────────────────────────────────────────────────────────
 

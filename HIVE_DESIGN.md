@@ -33,7 +33,7 @@ Implementation choices and engine-level details that the requirements doc delibe
 
 | Player item | Built entity | Notes |
 |---|---|---|
-| `hm-hive` | `hm-hive` | Roboport prototype, 0 robot / 0 material slots (kept for the build-zone overlay and dashed connection lines, not for bots). Storage lives in an adjacent passive-provider chest; clicking the hive routes to that chest's GUI. Build / visibility: 100×100 box. |
+| `hm-hive` | `hm-hive` | Roboport prototype, 0 robot / 0 material slots (kept for the build-zone overlay and dashed connection lines, not for bots). Storage lives in an adjacent passive-provider chest; clicking the hive routes to that chest's GUI. Visually: scaled-up gleba-spawner ("egg raft") tinted orange-red, falls back to tinted biter-spawner without Space Age. Build / visibility: 100×100 box. |
 | `hm-hive-node` | `hm-hive-node` | Roboport prototype, 0 robot / 0 material slots. Build / visibility: 50×50 box. |
 | `hm-hive-lab` | `hm-hive-lab` | Lab prototype. Only accepts `hm-pollution-science-pack`. |
 | `hm-biter-spawner` | vanilla `biter-spawner` | Player places a tinted proxy ghost (`hm-spawner-ghost`); `on_built_entity` swaps it for a real `biter-spawner` on the enemy force. |
@@ -43,7 +43,9 @@ Implementation choices and engine-level details that the requirements doc delibe
 
 ## Visual style
 
-Every hive-side entity (hive, hive node, hive lab, hive storage chest, hive worker) is a colored variant of the biter spawner sprite. No roboport, lab, or chest sprites should appear. The underlying prototype stays whatever makes the mechanics work; only the rendered visuals are swapped.
+Every hive-side entity is a coloured sprite swap. The hive itself uses the Space Age **gleba-spawner** ("egg raft") sprite, scaled up and tinted orange-red. Hive nodes, hive labs, storage chests, biter/spitter spawner proxies, and worm proxies all use the biter-spawner sprite tinted in their respective hues. Hive workers use the small-biter sprite. No roboport, lab, or chest sprites should appear.
+
+When the gleba-spawner prototype isn't loaded (e.g., the dev profile runs with `space-age = false`), the hive falls back to a tinted biter-spawner sprite so the data stage still loads.
 
 Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive storage = orange-red, biter spawner proxy = orange-red, spitter spawner proxy = lime, worm proxies = purple shades by tier.
 
