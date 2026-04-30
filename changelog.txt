@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.11
+Date: 2026-04-30
+  Bugfixes:
+    - Supremacy now actually visibly drains HP. Two compounding fixes: (1) damage_cache wrote target only when entity.health was already higher than target, so vanilla tree regen between ticks erased the drain. The write is now unconditional. (2) supremacy ticked at 1 Hz (60 game ticks); raised to 10 Hz (intervals.supremacy = 6) so the visible drain is smooth and regen can't catch up.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.10
 Date: 2026-04-30
   Bugfixes:

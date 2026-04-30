@@ -213,7 +213,11 @@ local function damage_cache(rec, hive_force)
         end
         table.remove(rec.entries, i)
       else
-        -- Linear visual drain. Direct health write — no resistance, no regen.
+        -- Linear visual drain. Direct, UNCONDITIONAL health write — vanilla
+        -- regen rate (~5 HP/sec on trees) was completely cancelling the
+        -- previous "if health > target" branch. We overwrite every tick so
+        -- regen has nothing to do but reset the health, which is fine since
+        -- we'll overwrite again moments later.
         local elapsed = now - e.added_tick
         local total   = e.expires_tick - e.added_tick
         if total > 0 then
@@ -221,7 +225,7 @@ local function damage_cache(rec, hive_force)
           if ratio < 0 then ratio = 0 end
           local target = e.max_hp * ratio
           if target < 1 then target = 1 end
-          if entity.health and entity.health > target then
+          if entity.health then
             entity.health = target
           end
         end
