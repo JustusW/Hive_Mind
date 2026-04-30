@@ -62,6 +62,7 @@ script.on_init(function()
   Force.configure(Force.get_hive())
   Force.get_permission_group()
   Director.update_all_hive_buttons()
+  Pheromone.reset()
 end)
 
 script.on_configuration_changed(function()
@@ -86,6 +87,12 @@ script.on_configuration_changed(function()
       Hive.create_chest(hive)
     end
   end
+
+  -- Defensive cleanup for the pheromone-burst rework: clear any in-flight
+  -- record (a stale started_tick from an earlier broken build would otherwise
+  -- be picked up as still-active) and strip stranded hm-pheromones items
+  -- left in joined players' inventories by the un-consumed-item bug.
+  Pheromone.reset()
 end)
 
 -- ── Remote interface ─────────────────────────────────────────────────────────

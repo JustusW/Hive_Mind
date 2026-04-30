@@ -212,6 +212,19 @@ shared.recruit =
   gate_attack_groups = false
 }
 
+-- Player pheromone burst tunables. The arrival radius matches the
+-- attack_area radius used to command recruited biters (see
+-- script/creatures.lua command_unit_to_position) so any biter that engaged
+-- the burst counts as "arrived" — a tighter radius would never converge
+-- because attack_area lets units roam within it. The timeout is a hard cap
+-- so a burst that never reaches X clears itself instead of permanently
+-- diverting recruitment.
+shared.pheromone_burst =
+{
+  arrival_radius = 16,
+  timeout_ticks  = 30 * 60   -- 30 seconds at 60 UPS
+}
+
 -- Pheromone Vent tunables (0.9.0). The vent attracts biters anchored to the
 -- placing player's network, gathers them, and dispatches as an autonomous
 -- attack group when the threshold is met.

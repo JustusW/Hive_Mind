@@ -4,26 +4,22 @@
 -- locks a position at the player's location and turns it into a temporary
 -- attractor: the network's incoming biter stream (recruited + disgorged) is
 -- diverted there until N biters have arrived, at which point they form an
--- engine-routed attack group.
+-- engine-routed attack group and the burst clears.
 --
--- Singleton: only one instance is ever live. Re-crafting cancels the
--- previous gather (overwrites the singleton). Re-crafting after dispatch
--- (gather complete, group already started_moving) is unrelated to the
--- dispersed group — the dispatched group runs its course on its own.
+-- Singleton: only one instance is ever live. Re-crafting overwrites the
+-- previous record (effective cancellation during gather). Re-crafting after
+-- dispatch is unrelated to the dispersed group — that group is a real
+-- engine attack group running on its own.
 --
--- State lives at `state.active_pheromone`:
+-- A hard timeout (`shared.pheromone_burst.timeout_ticks`) clears any burst
+-- that has been live too long without reaching its target_size. Without
+-- this, a burst placed somewhere with no biters within attack range would
+-- permanently divert recruitment and pile up units around the spot.
+--
+-- State at `state.active_pheromone`:
 --   { surface_index, position = {x,y}, target_size, gather_count,
---     seen_units = {}, started_tick }
+--     seen_units = {}, started_tick, disgorged = bool }
 -- or nil.
---
--- Wiring:
---   * Pheromone.on_crafted(event)  → triggered on on_player_crafted_item;
---                                    starts a new burst, consumes the item.
---   * Pheromone.tick()             → arrival scan + dispatch (cheap; one
---                                    find_entities at a fixed point).
---   * Pheromone.active(s)          → returns the live record or nil.
---   * Pheromone.position_for(s, surface) → returns {x,y} if a burst is live
---                                          on this surface, else nil.
 
 local shared    = require("shared")
 local State     = require("script.state")
@@ -35,7 +31,7 @@ local M = {}
 -- ── Sizing ─────────────────────────────────────────────────────────────────
 
 -- X = same as a default-mode Pheromone Vent's attack_group_size, scaled by
--- the Attack Group Size tech. Mode multiplier is fixed at 1.0 (default).
+-- the Attack Group Size tech.
 local function target_size_now()
   local force = Force.get_hive()
   local base  = shared.pheromone_vent.base_size
@@ -54,29 +50,21 @@ function M.active(s)
   return s.active_pheromone
 end
 
--- Returns the burst position table {x,y} if a burst is live on this surface,
--- else nil. Used by recruitment destination resolution.
-function M.position_for(s, surface)
-  s = s or State.get()
-  local p = s.active_pheromone
-  if not p then return nil end
-  if not (surface and surface.valid) then return nil end
-  if p.surface_index ~= surface.index then return nil end
-  return p.position
-end
-
 -- ── Lifecycle ──────────────────────────────────────────────────────────────
 
-local function consume_item(player)
+-- Strip every hm-pheromones item from a player. The item exists only as the
+-- recipe's result and has no in-world function — the recipe completion event
+-- is what triggers the burst, not "carrying the item".
+local function strip_pheromone_items(player)
   if not (player and player.valid) then return end
   local cursor = player.cursor_stack
   if cursor and cursor.valid_for_read and cursor.name == shared.items.pheromones then
-    local n = cursor.count
-    if n <= 1 then cursor.clear() else cursor.count = n - 1 end
-    return
+    cursor.clear()
   end
   local inv = player.get_main_inventory()
-  if inv then inv.remove({name = shared.items.pheromones, count = 1}) end
+  if inv then
+    inv.remove({name = shared.items.pheromones, count = inv.get_item_count(shared.items.pheromones)})
+  end
 end
 
 local function start(s, surface_index, position)
@@ -86,26 +74,53 @@ local function start(s, surface_index, position)
     target_size   = target_size_now(),
     gather_count  = 0,
     seen_units    = {},
-    started_tick  = game.tick
+    started_tick  = game.tick,
+    disgorged     = false
   }
 end
 
--- on_player_crafted_item handler. We only act on `hm-pheromones`; other
--- crafts are ignored. Cancels any live instance and starts a fresh one at
--- the player's current position.
+-- on_player_crafted_item handler. Only `hm-pheromones` matters; other crafts
+-- are ignored. Cancels any live instance, starts a fresh one at the player's
+-- current position, and consumes the produced item via the event's stack
+-- handle (reliable — searching the inventory afterwards races with engine
+-- delivery and was the source of the "item stuck in inventory" bug).
 function M.on_crafted(event)
   if not event or not event.item_stack then return end
   if event.item_stack.name ~= shared.items.pheromones then return end
   local player = game.get_player(event.player_index)
   if not (player and player.valid and player.surface and player.surface.valid) then return end
 
+  -- Wipe the just-crafted stack before it ever lands in the player's inv,
+  -- and then sweep any leftovers (e.g. from earlier broken builds where the
+  -- item lingered).
+  if event.item_stack.valid_for_read then event.item_stack.clear() end
+  strip_pheromone_items(player)
+
   local s = State.get()
-  -- Re-craft during gather phase: the new craft overwrites the previous
-  -- singleton (effective cancellation). Re-craft during berserk phase: the
-  -- previous instance is already dispatched and cleared from the singleton,
-  -- so nothing to overwrite — the dispersed group runs to completion.
   start(s, player.surface.index, player.position)
-  consume_item(player)
+end
+
+-- Cleanup hook: clear any active burst and strip leftover items from joined
+-- players. Call from on_init / on_configuration_changed so save/load and
+-- mod updates leave the world in a clean state.
+function M.reset()
+  local s = State.get()
+  s.active_pheromone = nil
+  for player_index in pairs(s.joined_players) do
+    strip_pheromone_items(game.get_player(player_index))
+  end
+end
+
+-- ── Disgorge integration ───────────────────────────────────────────────────
+
+-- Returns true the first time it's called for a given burst. Used by
+-- creatures.lua to disgorge each hive's stored creatures exactly once when
+-- a burst is created, instead of repeating every recruitment scan tick.
+function M.consume_disgorge_flag(burst)
+  if not burst then return false end
+  if burst.disgorged then return false end
+  burst.disgorged = true
+  return true
 end
 
 -- ── Arrival scan + dispatch ────────────────────────────────────────────────
@@ -122,7 +137,7 @@ local function dispatch(s)
   Telemetry.bump_op("find")
   local in_radius = surface.find_entities_filtered{
     position = burst.position,
-    radius   = shared.pheromone_vent.arrival_radius,
+    radius   = shared.pheromone_burst.arrival_radius,
     force    = hive_force,
     type     = "unit"
   }
@@ -148,8 +163,28 @@ end
 
 function M.tick()
   local s = State.get()
+
+  -- Defensive sweep: a player should never legitimately hold an
+  -- hm-pheromones item — the recipe is fire-and-forget and consumes the
+  -- result on craft. Older broken builds left strays in inventories. This
+  -- runs once per scan-cadence tick (cheap inventory query per joined
+  -- player) so saves loaded after the fix self-heal without a version
+  -- bump driving on_configuration_changed.
+  for player_index in pairs(s.joined_players) do
+    strip_pheromone_items(game.get_player(player_index))
+  end
+
   local burst = s.active_pheromone
   if not burst then return end
+
+  -- Hard timeout. Catches stale records (post-load with corrupt timer or a
+  -- spot with no biters in attack range) so a burst can never trap
+  -- recruitment indefinitely.
+  local timeout = shared.pheromone_burst.timeout_ticks or (30 * 60)
+  if (game.tick - (burst.started_tick or 0)) > timeout then
+    s.active_pheromone = nil
+    return
+  end
 
   local surface = game.surfaces and game.surfaces[burst.surface_index]
   if not (surface and surface.valid) then s.active_pheromone = nil; return end
@@ -159,7 +194,7 @@ function M.tick()
 
   local found = surface.find_entities_filtered{
     position = burst.position,
-    radius   = shared.pheromone_vent.arrival_radius,
+    radius   = shared.pheromone_burst.arrival_radius,
     force    = hive_force,
     type     = "unit"
   }

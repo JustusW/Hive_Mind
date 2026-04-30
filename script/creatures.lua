@@ -417,10 +417,22 @@ function M.recruit_at_member(entity, kind, ctx)
   local bucket, network = bucket_for_member(entity, ctx)
 
   if kind == "hive" then
+    -- Disgorge runs exactly once per burst, on the first hive that passes
+    -- through this branch after the burst is created. Re-disgorging on
+    -- every recruitment scan tick was the cause of unit-spawn floods that
+    -- locked the game up — chests dump ALL stored creatures via repeated
+    -- find_non_colliding_position calls, which is fine once but ruinous
+    -- every second.
     if ctx.pheromone_burst
        and entity.surface
-       and entity.surface.index == ctx.pheromone_burst.surface_index then
-      disgorge_hive_units(entity, ctx.pheromone_burst.position, ctx.hive_force)
+       and entity.surface.index == ctx.pheromone_burst.surface_index
+       and Pheromone.consume_disgorge_flag(ctx.pheromone_burst) then
+      for _, hive in pairs(ctx.hives) do
+        if hive and hive.valid and hive.surface
+           and hive.surface.index == ctx.pheromone_burst.surface_index then
+          disgorge_hive_units(hive, ctx.pheromone_burst.position, ctx.hive_force)
+        end
+      end
     end
     local default_target = {entity = entity}
     local radius = shared.ranges.hive * ctx.factor
