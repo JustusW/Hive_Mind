@@ -13,6 +13,26 @@ local Hive   = require("script.hive")
 
 local M = {}
 
+-- Boxes (not circles) overlap iff their x-extents AND y-extents both
+-- overlap. Hive / node ranges are axis-aligned half-extents, so the right
+-- containment test is Chebyshev:
+--   covers(c, p, range) ⇔ |c.x - p.x| <= range  AND  |c.y - p.y| <= range
+-- and two boxes touch iff their separations along BOTH axes are <= sum of
+-- the two ranges. Earlier code used Euclidean (dx*dx + dy*dy <= r*r), which
+-- is the inscribed circle and falsely rejects positions in the four corner
+-- regions of each box.
+local function abs(x) if x < 0 then return -x end return x end
+
+local function covers(center, position, range)
+  return abs(center.x - position.x) <= range
+     and abs(center.y - position.y) <= range
+end
+
+local function boxes_touch(a, b, touch)
+  return abs(a.x - b.x) <= touch
+     and abs(a.y - b.y) <= touch
+end
+
 -- Every hive-side structure on `surface`, with its build/visibility radius
 -- and kind. `kind` distinguishes "hive" (has a chest) from "node".
 function M.all_structures(surface)
@@ -54,10 +74,7 @@ function M.hives_for_position(surface, position, reach)
 
   local in_net = {}
   for i, s in ipairs(structs) do
-    local dx = s.entity.position.x - position.x
-    local dy = s.entity.position.y - position.y
-    local seed = s.range + reach
-    if dx * dx + dy * dy <= seed * seed then
+    if covers(s.entity.position, position, s.range + reach) then
       in_net[i] = true
     end
   end
@@ -70,10 +87,7 @@ function M.hives_for_position(surface, position, reach)
       if not in_net[i] then
         for j in pairs(in_net) do
           local m = structs[j]
-          local dx = s.entity.position.x - m.entity.position.x
-          local dy = s.entity.position.y - m.entity.position.y
-          local touch = s.range + m.range
-          if dx * dx + dy * dy <= touch * touch then
+          if boxes_touch(s.entity.position, m.entity.position, s.range + m.range) then
             in_net[i] = true
             changed = true
             break
@@ -137,9 +151,7 @@ function M.resolve_at(surface, position)
 
   local in_net = {}
   for i, st in ipairs(structs) do
-    local dx = st.entity.position.x - position.x
-    local dy = st.entity.position.y - position.y
-    if dx * dx + dy * dy <= st.range * st.range then
+    if covers(st.entity.position, position, st.range) then
       in_net[i] = true
     end
   end
@@ -152,10 +164,7 @@ function M.resolve_at(surface, position)
       if not in_net[i] then
         for j in pairs(in_net) do
           local m = structs[j]
-          local dx = st.entity.position.x - m.entity.position.x
-          local dy = st.entity.position.y - m.entity.position.y
-          local touch = st.range + m.range
-          if dx * dx + dy * dy <= touch * touch then
+          if boxes_touch(st.entity.position, m.entity.position, st.range + m.range) then
             in_net[i] = true
             changed = true
             break

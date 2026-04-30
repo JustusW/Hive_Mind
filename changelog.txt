@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.15
+Date: 2026-04-30
+  Bugfixes:
+    - Network containment / placement now uses Chebyshev (axis-aligned box) distance, matching the actual hive and node footprints. Previously it used Euclidean distance (dx² + dy² ≤ r²) — the inscribed circle of each box — so hives and nodes only connected at full range when perfectly horizontally or vertically aligned, and corner regions of every box were falsely rejected. This is most visible for the Hive (range 50, box 100×100): the diagonal corners ended up nearly 30% outside the old check. Fixed in both Network.hives_for_position and Network.resolve_at.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.14
 Date: 2026-04-30
   Bugfixes:
