@@ -13,6 +13,7 @@ local Force     = require("script.force")
 local Hive      = require("script.hive")
 local Creatures = require("script.creatures")
 local Anchor    = require("script.anchor")
+local Network   = require("script.network")
 
 local M = {}
 
@@ -378,24 +379,22 @@ function M.on_gui_opened(event)
   if event.gui_type == defines.gui_type.none       then return end
   if event.gui_type == defines.gui_type.entity
      and event.entity and event.entity.valid then
-    if event.entity.name == shared.entities.hive then
-      local chest = Hive.get_chest(event.entity)
+    -- Both hives and hive nodes route to the network's PRIMARY chest. The
+    -- network has one shared inventory; clicking any hive or node always
+    -- shows the same content, so the player never has to wonder which
+    -- chest holds what.
+    if event.entity.name == shared.entities.hive
+       or event.entity.name == shared.entities.hive_node then
+      local chest
+      if event.entity.name == shared.entities.hive then
+        chest = Network.primary_chest(event.entity)
+      else
+        local hive = Creatures.cached_nearest_hive(event.entity, Hive.all())
+        if hive and hive.valid then chest = Network.primary_chest(hive) end
+      end
       if chest and chest.valid then
         player.opened = chest
         return
-      end
-    end
-    -- Hive nodes have no chest of their own. Route the click to the chest
-    -- of the nearest hive on the surface so the player can inspect storage
-    -- from any node in the network.
-    if event.entity.name == shared.entities.hive_node then
-      local hive = Creatures.cached_nearest_hive(event.entity, Hive.all())
-      if hive and hive.valid then
-        local chest = Hive.get_chest(hive)
-        if chest and chest.valid then
-          player.opened = chest
-          return
-        end
       end
     end
     if allowed_entity_gui[event.entity.name] then return end

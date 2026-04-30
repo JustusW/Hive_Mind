@@ -106,6 +106,38 @@ function M.hives_for_position(surface, position, reach)
   return (#hives > 0) and hives or nil
 end
 
+-- Primary chest for a network. The network as a whole has one shared
+-- inventory; the chest the player actually sees is the one belonging to
+-- the smallest-unit_number hive in the network. Writes (absorption,
+-- disgorge reads) and the GUI click on any hive route here so the player
+-- never sees per-hive content splits.
+--
+-- Reads via the iterating helpers (item_count, pollution_capacity, etc.)
+-- still walk every hive, but only the primary's chest holds content — the
+-- others are empty by construction — so the sum is correct.
+--
+-- `hive_or_position` may be a hive entity (resolves the network at that
+-- entity's position) or a {surface, position} pair already resolved.
+function M.primary_chest(hive)
+  if not (hive and hive.valid) then return nil end
+  local network = M.resolve_at(hive.surface, hive.position)
+  if not network or not network.hives or #network.hives == 0 then
+    return Hive.get_chest(hive)
+  end
+  local primary, primary_id
+  for _, h in pairs(network.hives) do
+    if h and h.valid then
+      local id = h.unit_number
+      if id and (not primary_id or id < primary_id) then
+        primary_id = id
+        primary    = h
+      end
+    end
+  end
+  if primary then return Hive.get_chest(primary) end
+  return Hive.get_chest(hive)
+end
+
 -- Sum of `item_name` across all chests in `hives`.
 function M.item_count(hives, item_name)
   local total = 0

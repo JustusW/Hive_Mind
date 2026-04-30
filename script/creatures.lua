@@ -90,7 +90,11 @@ local function active_pheromone(s)
 end
 
 local function disgorge_hive_units(hive, target_position, hive_force)
-  local chest = Hive.get_chest(hive)
+  -- Read from the network's primary chest, not the per-hive chest. All
+  -- absorbed creatures live in one place at the network level (see
+  -- Network.primary_chest); reading the local chest would miss everything
+  -- on a non-primary hive (typically the case for promoted hives).
+  local chest = Network.primary_chest(hive)
   if not (chest and target_position and hive_force) then return end
   local inv = chest.get_inventory(defines.inventory.chest)
   if not inv then return end
@@ -127,8 +131,10 @@ end
 -- ── Absorption ───────────────────────────────────────────────────────────────
 
 -- Eat any hive-eligible unit standing on the hive into its storage chest.
+-- Inserts into the network's shared primary chest so every hive in the
+-- network feeds the same pile.
 function M.absorb_at_hive(entity)
-  local chest = Hive.get_chest(entity)
+  local chest = Network.primary_chest(entity)
   if not chest then return end
   local inv = chest.get_inventory(defines.inventory.chest)
   if not inv then return end
@@ -181,7 +187,8 @@ function M.absorb_at_node(node, ctx)
   if not (node and node.valid and ctx) then return end
   local hive = M.cached_nearest_hive(node, ctx.hives)
   if not (hive and hive.valid) then return end
-  local chest = Hive.get_chest(hive)
+  -- Network primary chest, same shared-storage rule as absorb_at_hive.
+  local chest = Network.primary_chest(hive)
   if not chest then return end
   local inv = chest.get_inventory(defines.inventory.chest)
   if not inv then return end
