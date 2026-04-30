@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.13
+Date: 2026-04-30
+  Changes:
+    - Pheromones now make biters attack engineer-aligned entities at the carrier's position. Recruited and disgorged units are sent with attack_area at the carrier's position (radius 16) instead of go_to_location, so they engage any player-force structures, vehicles, or other engineer stuff that happens to be at the carrier.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.12
 Date: 2026-04-30
   Bugfixes:

@@ -62,15 +62,22 @@ local function command_unit_to_entity(unit, target_entity)
   }
 end
 
+-- Used for pheromone-driven targeting: biters converge on the carrier and
+-- attack engineer-aligned (player-force) entities at that position. The hive
+-- force isn't friend with the `player` force, so attack_area picks up any
+-- player-built buildings, vehicles, or surviving engineer stuff near the
+-- carrier as legitimate targets. distraction.none keeps them on-task on the
+-- way there; the radius is wide enough to engage anything inside the
+-- carrier's immediate footprint.
 local function command_unit_to_position(unit, position)
   if not (unit and unit.valid and position) then return end
   local commandable = unit.commandable
   if not commandable then return end
   commandable.set_command{
-    type        = defines.command.go_to_location,
+    type        = defines.command.attack_area,
     destination = position,
-    distraction = defines.distraction.none,
-    radius      = 1
+    radius      = 16,
+    distraction = defines.distraction.none
   }
 end
 
