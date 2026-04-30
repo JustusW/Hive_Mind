@@ -21,6 +21,7 @@ local Creep     = require("script.creep")
 local Lab       = require("script.lab")
 local Labels    = require("script.labels")
 local Workers   = require("script.workers")
+local Supremacy = require("script.supremacy")
 local Debug     = require("script.debug")
 
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ local function on_tick(event)
   if tick % shared.intervals.creep   == 0 then Creep.tick()                 end
   if tick % shared.intervals.labels  == 0 then Labels.tick()                end
   if tick % shared.intervals.loadout == 0 then Director.refill_all_loadouts() end
+  if tick % shared.intervals.supremacy == 0 then Supremacy.tick()            end
 
   Debug.tick()
 end

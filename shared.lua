@@ -65,7 +65,8 @@ shared.technologies =
   worms_medium = "hm-worms-medium",
   worms_big = "hm-worms-big",
   worms_behemoth = "hm-worms-behemoth",
-  attraction_reach = "hm-attraction-reach"
+  attraction_reach = "hm-attraction-reach",
+  hive_supremacy = "hm-hive-supremacy"
 }
 
 -- Infinite attraction-reach tech: each level adds this fraction to the
@@ -99,13 +100,14 @@ shared.ranges =
 
 shared.intervals =
 {
-  recruit = 120,
-  absorb  = 30,
-  supply  = 60,
-  workers = 6,   -- ghost-fulfilment dispatcher
-  creep   = 3,
-  labels  = 30,  -- pollution-display refresh on each hive
-  loadout = 60   -- inventory + quickbar watchdog for hive directors
+  recruit   = 120,
+  absorb    = 30,
+  supply    = 60,
+  workers   = 6,    -- ghost-fulfilment dispatcher
+  creep     = 3,
+  labels    = 30,   -- pollution-display refresh on each hive
+  loadout   = 60,   -- inventory + quickbar watchdog for hive directors
+  supremacy = 60    -- creep-damage scan once per second
 }
 
 -- Maximum simultaneously-in-flight workers per hive. Workers are spawned on
@@ -189,6 +191,22 @@ shared.pollution_generator_per_tick = 10000 / 3600
 shared.science =
 {
   pollution_per_pack = 25
+}
+
+-- Hive Supremacy: damage applied to non-hive entities standing on creep,
+-- once researched. Lifetimes in seconds (the scan runs every
+-- shared.intervals.supremacy ticks); damage per tick is computed from each
+-- entity's max_health so a tree dies in ~tree_lifetime seconds and a building
+-- in ~building_lifetime seconds regardless of prototype hp.
+shared.supremacy =
+{
+  tree_lifetime         = 30,
+  building_lifetime     = 60,
+  -- Pollution burst released into the world when a tree dies on creep, used
+  -- as a fallback when the tree prototype lacks emissions / pollution data.
+  tree_pollution_default = 50,
+  -- Tech research cost (Pollution Science Packs).
+  research_packs        = 200
 }
 
 shared.creep_tile = "hm-creep"

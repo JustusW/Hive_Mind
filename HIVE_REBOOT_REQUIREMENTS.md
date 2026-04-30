@@ -50,6 +50,16 @@ Each placeable item lists its pollution cost in its tooltip.
 - **Node placement exception**: a Hive Node can be placed as long as it would connect to the network — i.e., the new node's own 50×50 box would overlap an existing hive or node — even if the placement position itself sits just outside the current network's build zone. All other buildings still require the placement position to be inside the network's build zone.
 - A single purple **creep** tile fills the same box outward in Chebyshev rings. Biters move faster on creep.
 
+## Hive Supremacy
+
+Once **Hive Supremacy** is researched, anything on creep that isn't part of the hive ecosystem withers and dies.
+
+- Hive structures, hive workers, recruited creatures, and vanilla biters / spitters / spawners / worm turrets are unaffected — they belong on creep.
+- Trees on creep wither slowly (~30 seconds end-to-end). When a tree dies it releases its full vanilla pollution burst into the air, feeding back into recruitment pressure.
+- Player-built structures, vehicles, and any other non-hive non-biter entity on creep take continuous damage and are destroyed in roughly 60 seconds.
+- The effect only applies on hive-created creep, not on natural terrain.
+- Hive Supremacy is a single-shot tech (no tier list, no infinite scaling).
+
 ## Cost
 
 - Every absorbed creature is worth some pollution.
@@ -64,6 +74,7 @@ Each placeable item lists its pollution cost in its tooltip.
 - Hive Spawners and Hive Labs unlock from gameplay events (placing a hive, spreading creep) rather than manual research.
 - Worm tiers are researched manually in order.
 - Attraction Reach is infinite (+10% per level, cost ramps with level).
+- Hive Supremacy is a manual single-shot tech that turns creep hostile to non-hive entities.
 - The vanilla tech tree is hidden on the hive force.
 
 ## Non-goals

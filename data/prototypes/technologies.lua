@@ -77,6 +77,34 @@ end
 -- Infinite tech: each level adds +10% to the hive's attraction radius. The
 -- effect is applied at runtime in script/creatures.lua; we use a "nothing"
 -- effect here purely to render a description in the research GUI.
+-- Hive Supremacy: single-shot, manual research, prerequisite hm-hive-labs.
+-- Effect is applied at runtime in script/supremacy.lua; we use a "nothing"
+-- effect here purely to render a description in the research GUI.
+techs[#techs + 1] =
+{
+  type = "technology",
+  name = shared.technologies.hive_supremacy,
+  localised_name = {"technology-name." .. shared.technologies.hive_supremacy},
+  localised_description = {"technology-description." .. shared.technologies.hive_supremacy},
+  icon = "__base__/graphics/technology/uranium-ammo.png",
+  icon_size = 256,
+  order = "z[hive]-e[supremacy]",
+  prerequisites = {shared.technologies.hive_labs},
+  effects =
+  {
+    {
+      type = "nothing",
+      effect_description = {"effect-description." .. shared.technologies.hive_supremacy}
+    }
+  },
+  unit =
+  {
+    count = shared.science.research_packs,
+    time = 30,
+    ingredients = {{shared.items.pollution_science_pack, 1}}
+  }
+}
+
 techs[#techs + 1] =
 {
   type = "technology",

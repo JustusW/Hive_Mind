@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.0
+Date: 2026-04-30
+  Major:
+    - New tech "Hive Supremacy" (manual research, prerequisite Hive Labs). While researched, anything standing on hive creep that isn't part of the hive ecosystem withers. Hive force entities and vanilla biters/spitters/spawners/worms are immune. Trees die in ~30s and release their vanilla pollution burst into the world; player buildings and other neutral entities die in ~60s.
+---------------------------------------------------------------------------------------------------
 Version: 0.7.2
 Date: 2026-04-30
   Bugfixes:

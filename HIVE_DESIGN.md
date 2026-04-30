@@ -127,6 +127,18 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 - Cursor (`creep_layer`, `creep_step`) lives on the hive's storage record and on each hive_node's record.
 - Water and void terminate growth at that tile but do not stop the ring.
 
+## Hive Supremacy
+
+When `hm-hive-supremacy` is researched, a per-tick scan inflicts damage on anything standing on the hive's creep tile that isn't an approved inhabitant.
+
+- Tech is a single-shot manual research; recipe-style gating only — no in-progress effect, no infinite scaling.
+- A new module `script/supremacy.lua` runs every `shared.intervals.supremacy` ticks (1s). It iterates all surfaces with at least one hive on the hive force; on each surface it queries `find_entities_filtered{ collision_mask = ..., type = {"tree", "container", "assembling-machine", ...} }` over a sparse grid of creep tiles, then filters by `surface.get_tile(pos).name == shared.creep_tile`.
+- An entity is **immune** if any of these hold: `entity.force == hive force`, or `entity.type` is in `{"unit","unit-spawner","turret"}` AND its name is a vanilla biter / spitter / spawner / worm-turret, or the entity's prototype is a hive prototype (`shared.entities.*`).
+- Damage is applied as `entity.damage(amount, hive_force, "physical")` per tick, with amount tuned so a default tree dies in ~`shared.supremacy.tree_lifetime_ticks` ticks (≈30s) and a default building in ~`shared.supremacy.building_lifetime_ticks` ticks (≈60s). Lifetime → DPS conversion uses each prototype's max_health: `dps = max_health / lifetime_seconds`.
+- Trees: when supremacy kills a tree we read its prototype's `emissions_per_second` / `pollution` field if present, otherwise fall back to `shared.supremacy.tree_pollution_default`, and call `surface.pollute(position, amount)` so the world's vanilla pollution map absorbs it. The hive's resource pool is **not** directly credited; the burst feeds recruitment via vanilla pollution-driven spawner activity.
+- Performance: rather than scanning every creep tile each tick (potentially millions), the loop samples one entity-find per hive's bounding box and lets `find_entities_filtered` do the heavy lifting. Damage is batched in a single pass per surface.
+- The tech itself: `hm-hive-supremacy` lives in `data/prototypes/technologies.lua`, costs `shared.science.supremacy_pack_count` Pollution Science Packs, prerequisite `hm-hive-labs`, single `nothing` effect with the localised description.
+
 ## Eligibility registry
 
 - `remote.add_interface("hive_reboot", { register_creature_role, unregister_creature_role, join_hive })`.
