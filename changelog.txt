@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.9
+Date: 2026-04-30
+  Bugfixes:
+    - Fixed crash on save-load after upgrading to 0.9.8: "attempt to compare nil with number" in supremacy.damage_cache. The 0.9.8 cache shape replaced dmg_per_tick / lifetime_seconds with added_tick / expires_tick / max_hp, but saves from 0.9.5–0.9.7 still hold cache entries in the old shape. damage_cache now drops entries that lack the new fields; the next candidate scan rewrites them in the current shape.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.8
 Date: 2026-04-30
   Bugfixes:

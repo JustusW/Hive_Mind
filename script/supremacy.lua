@@ -181,6 +181,11 @@ local function damage_cache(rec, hive_force)
     local entity = e and e.entity
     if not (entity and entity.valid) then
       table.remove(rec.entries, i)
+    elseif not e.expires_tick or not e.max_hp then
+      -- Cache entry written by an older mod version (pre-0.9.8 had
+      -- dmg_per_tick / lifetime_seconds instead). Drop it; the next
+      -- candidate scan rewrites the entry in the new shape.
+      table.remove(rec.entries, i)
     else
       Telemetry.bump_supremacy("damage_calls")
       Telemetry.bump_op("damage")
