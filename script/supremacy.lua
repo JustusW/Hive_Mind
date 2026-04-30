@@ -147,10 +147,11 @@ local function rebuild_cache(member, range, hive_force, now)
                                     or shared.supremacy.building_lifetime
           rec.entries[#rec.entries + 1] = {
             entity           = entity,
-            lifetime_seconds = lifetime,
             is_tree          = is_tree,
+            max_hp           = max_hp,
             pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
-            dmg_per_tick     = damage_per_tick(max_hp, lifetime)
+            added_tick       = now,
+            expires_tick     = now + lifetime * 60
           }
           added = added + 1
         else
@@ -167,37 +168,44 @@ local function rebuild_cache(member, range, hive_force, now)
   Telemetry.bump_supremacy("rebuild_added", added)
 end
 
+-- Wither cache entries by writing entity.health directly. Bypasses the entire
+-- damage-resistance pipeline and tree health regeneration, both of which
+-- previously stalled trees at low HP forever. On expiry the entity is
+-- entity.die()-finished so the on_died handlers (and our pollution burst on
+-- trees) still fire.
 local function damage_cache(rec, hive_force)
   if not rec or not rec.entries then return end
-  -- Walk the sequence backwards so we can safely table.remove on kill.
+  local now = game.tick
   for i = #rec.entries, 1, -1 do
     local e = rec.entries[i]
     local entity = e and e.entity
     if not (entity and entity.valid) then
       table.remove(rec.entries, i)
     else
-      local pre_pos = {x = entity.position.x, y = entity.position.y}
-      local surface = entity.surface
       Telemetry.bump_supremacy("damage_calls")
       Telemetry.bump_op("damage")
-      -- Trees take massive physical resistance in vanilla (typically -5/-50%),
-      -- so a 3 dps physical hit floors to 1 and they get stuck at 1 HP. Use
-      -- "fire" for trees (100% damage in vanilla) and "physical" for the
-      -- rest.
-      local dtype = e.is_tree and "fire" or "physical"
-      entity.damage(e.dmg_per_tick, hive_force, dtype)
-      -- If damage dropped the entity to a sliver but not over the line,
-      -- finish it. Prevents the "tree stuck at 1 HP" failure mode where
-      -- per-tick damage is rounded into the resistance floor.
-      if entity.valid and entity.health and entity.health <= 1 then
+      if now >= e.expires_tick then
+        local pre_pos = {x = entity.position.x, y = entity.position.y}
+        local surface = entity.surface
         entity.die(hive_force)
-      end
-      if not entity.valid then
         Telemetry.bump_supremacy("damage_killed")
         if e.is_tree and e.pollution_burst > 0 and surface and surface.valid then
           surface.pollute(pre_pos, e.pollution_burst)
         end
         table.remove(rec.entries, i)
+      else
+        -- Linear visual drain. Direct health write — no resistance, no regen.
+        local elapsed = now - e.added_tick
+        local total   = e.expires_tick - e.added_tick
+        if total > 0 then
+          local ratio = 1 - (elapsed / total)
+          if ratio < 0 then ratio = 0 end
+          local target = e.max_hp * ratio
+          if target < 1 then target = 1 end
+          if entity.health and entity.health > target then
+            entity.health = target
+          end
+        end
       end
     end
   end

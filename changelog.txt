@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.8
+Date: 2026-04-30
+  Bugfixes:
+    - Fixed Hive Supremacy "trees stuck at low HP" by bypassing entity.damage entirely. Vanilla trees have full fire resistance AND regenerate health over time, so per-tick damage was being absorbed by resistance and then regenerated faster than supremacy could whittle it down. Supremacy now writes entity.health directly (linear drain over the lifetime), then entity.die()'s the entity at expiry. Tree pollution burst still fires on death.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.7
 Date: 2026-04-30
   Changes:
