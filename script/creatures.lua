@@ -126,7 +126,7 @@ end
 -- ── Absorption ───────────────────────────────────────────────────────────────
 
 -- Eat any hive-eligible unit standing on the hive into its storage chest.
-local function absorb_units_into_hive(entity)
+function M.absorb_at_hive(entity)
   local chest = Hive.get_chest(entity)
   if not chest then return end
   local inv = chest.get_inventory(defines.inventory.chest)
@@ -156,7 +156,7 @@ end
 
 function M.tick_absorption()
   if active_pheromone_player(State.get()) then return end
-  for _, hive in pairs(Hive.all()) do absorb_units_into_hive(hive) end
+  for _, hive in pairs(Hive.all()) do M.absorb_at_hive(hive) end
 end
 
 -- ── Recruitment ──────────────────────────────────────────────────────────────
@@ -221,51 +221,67 @@ end
 -- surface, since nodes have no chest of their own. A player carrying
 -- pheromones overrides every target — recruited units converge on them
 -- regardless of which recruiter spotted them.
-function M.tick_recruitment()
-  local s           = State.get()
+
+-- Build a per-tick context shared across all members in this scan tick.
+-- One pheromone-player resolution + one Hive.all() per tick, not per member.
+function M.recruit_setup_tick()
   local enemy_force = Force.get_enemy()
   local hive_force  = Force.get_hive()
-  if not (enemy_force and hive_force) then return end
+  if not (enemy_force and hive_force) then return nil end
+  local s = State.get()
+  return {
+    state            = s,
+    enemy_force      = enemy_force,
+    hive_force       = hive_force,
+    factor           = reach_factor(hive_force),
+    pheromone_player = active_pheromone_player(s),
+    hives            = Hive.all()
+  }
+end
 
-  local factor      = reach_factor(hive_force)
-  local hive_radius = shared.ranges.hive      * factor
-  local node_radius = shared.ranges.hive_node * factor
+-- Recruit eligible units around one network member (hive or hive_node) using
+-- the shared per-tick context. Used by the unified scan dispatcher.
+function M.recruit_at_member(entity, kind, ctx)
+  if not (entity and entity.valid and ctx) then return end
 
-  -- One pheromone player wins: pick the first one we see that's actually
-  -- holding the lure. Multiplayer with multiple pheromone-carriers is rare
-  -- and the simple choice keeps the per-tick cost bounded.
-  local pheromone_player = active_pheromone_player(s)
-
-  local hives = Hive.all()
-  if pheromone_player then
-    for _, hive in pairs(hives) do
-      disgorge_hive_units(hive, pheromone_player.position, hive_force)
+  if kind == "hive" then
+    if ctx.pheromone_player then
+      disgorge_hive_units(entity, ctx.pheromone_player.position, ctx.hive_force)
+    end
+    local target = ctx.pheromone_player
+                 and {position = ctx.pheromone_player.position}
+                 or  {entity = entity}
+    local radius = shared.ranges.hive * ctx.factor
+    recruit_around(entity, radius, target, ctx.enemy_force, ctx.hive_force)
+  elseif kind == "hive_node" then
+    local target
+    if ctx.pheromone_player then
+      target = {position = ctx.pheromone_player.position}
+    else
+      local hive = nearest_hive_on_surface(entity, ctx.hives)
+      if hive then target = {entity = hive} end
+    end
+    if target then
+      local radius = shared.ranges.hive_node * ctx.factor
+      recruit_around(entity, radius, target, ctx.enemy_force, ctx.hive_force)
     end
   end
+end
 
-  -- Hives: target is the hive itself (or the pheromone player if any).
-  for _, hive in pairs(hives) do
-    local target = pheromone_player
-                 and {position = pheromone_player.position}
-                 or  {entity = hive}
-    recruit_around(hive, hive_radius, target, enemy_force, hive_force)
+-- Legacy bulk entry — runs over all members in one go. Retained for callers
+-- that need a non-spread sweep (none today after the unified scan landed in
+-- 0.9.0); the unified scan calls recruit_at_member directly instead.
+function M.tick_recruitment()
+  local ctx = M.recruit_setup_tick()
+  if not ctx then return end
+
+  for _, hive in pairs(ctx.hives) do
+    M.recruit_at_member(hive, "hive", ctx)
   end
-
-  -- Nodes: redirect to the nearest hive on the surface, since nodes don't
-  -- absorb. Pheromone player still overrides.
-  for _, node_data in pairs(s.hive_nodes) do
+  for _, node_data in pairs(ctx.state.hive_nodes) do
     local node = node_data.entity
     if node and node.valid then
-      local target
-      if pheromone_player then
-        target = {position = pheromone_player.position}
-      else
-        local hive = nearest_hive_on_surface(node, hives)
-        if hive then target = {entity = hive} end
-      end
-      if target then
-        recruit_around(node, node_radius, target, enemy_force, hive_force)
-      end
+      M.recruit_at_member(node, "hive_node", ctx)
     end
   end
 end

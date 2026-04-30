@@ -8,6 +8,7 @@
 --   hive_storage         [unit_number]               = {entity, chest, creep_layer, creep_step}
 --   pollution_generators [unit_number]               = entity
 --   hive_roles           [entity_name][role]         = true
+--   scan_cursor          number (rotating index for the unified scan, 0.9.0)
 --
 -- All state lives under storage.hive_reboot. `storage` is the Factorio 2.0
 -- name; `global` is kept as a fallback for older runtimes.
@@ -38,6 +39,7 @@ function M.get()
   if not state.hives_by_player       then state.hives_by_player       = {} end
   if not state.hive_nodes            then state.hive_nodes            = {} end
   if not state.hive_storage          then state.hive_storage          = {} end
+  if state.scan_cursor               == nil then state.scan_cursor    = 0  end
   return state
 end
 

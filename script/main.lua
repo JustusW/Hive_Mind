@@ -24,6 +24,7 @@ local Workers   = require("script.workers")
 local Supremacy = require("script.supremacy")
 local Debug     = require("script.debug")
 local Telemetry = require("script.telemetry")
+local Scan      = require("script.scan")
 
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
 
@@ -31,8 +32,11 @@ local function on_tick(event)
   Director.restore_mined_entities()
 
   local tick = event.tick
-  if tick % shared.intervals.recruit   == 0 then Telemetry.measure("recruit",   Creatures.tick_recruitment) end
-  if tick % shared.intervals.absorb    == 0 then Telemetry.measure("absorb",    Creatures.tick_absorption)  end
+  -- Unified per-member scan replaces the old intervals.recruit + intervals.absorb
+  -- cadences; recruit and absorb fire from inside Scan.tick on a work-spread
+  -- rotation.
+  Scan.tick(tick)
+
   if tick % shared.intervals.supply    == 0 then Lab.tick_supply()                                          end
   if tick % shared.intervals.workers   == 0 then Telemetry.measure("workers",   Workers.tick)               end
   if tick % shared.intervals.creep     == 0 then Telemetry.measure("creep",     Creep.tick)                 end
