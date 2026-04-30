@@ -11,6 +11,8 @@
 --   scan_cursor          number (rotating index for the unified scan, 0.9.0)
 --   supremacy_candidates [member_unit_number] = { last_scan_tick, entries[entity_unit_number] = {...} }
 --   recruit_buckets      [network_key]        = { tokens, last_tick, spawner_count, spawner_count_tick }
+--   pheromone_vents      [unit_number]        = { entity, placer_player_index, gather_count, seen_units, mode }
+--   vent_cursor          number (rotating index for the per-tick vent arrival scan, 0.9.0)
 --   telemetry_recruit    transient counters reset on scan flush
 --
 -- All state lives under storage.hive_reboot. `storage` is the Factorio 2.0
@@ -45,6 +47,8 @@ function M.get()
   if state.scan_cursor               == nil then state.scan_cursor    = 0  end
   if not state.supremacy_candidates  then state.supremacy_candidates  = {} end
   if not state.recruit_buckets       then state.recruit_buckets       = {} end
+  if not state.pheromone_vents       then state.pheromone_vents       = {} end
+  if state.vent_cursor               == nil then state.vent_cursor    = 0  end
   return state
 end
 

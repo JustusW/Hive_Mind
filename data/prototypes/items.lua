@@ -99,6 +99,23 @@ local prototypes =
     place_result = shared.entities.spitter_spawner_ghost,
     stack_size = 10
   },
+  -- Pheromone Vent (0.9.0). Tinted small gleba-spawner icon (deep red) so
+  -- the menu icon matches the recoloured-hive-node entity.
+  {
+    type = "item",
+    name = shared.items.pheromone_vent,
+    localised_name = {"item-name." .. shared.items.pheromone_vent},
+    localised_description = build_cost_description(0),
+    icons = {{
+      icon = space_age_assets.gleba_spawner_small_icon,
+      icon_size = space_age_assets.icon_size,
+      tint = {r = 0.85, g = 0.10, b = 0.10, a = 1}
+    }},
+    subgroup = "intermediate-product",
+    order = "z[hive]-d[pheromone-vent]",
+    place_result = shared.entities.pheromone_vent,
+    stack_size = 10
+  },
   -- Pollution generator (debug).
   {
     type = "item",

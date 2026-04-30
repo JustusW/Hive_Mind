@@ -105,6 +105,57 @@ techs[#techs + 1] =
   }
 }
 
+-- Pheromone Vent (0.9.0): single-shot, prereq Small Worms. Unlocks the
+-- pheromone-vent recipe.
+techs[#techs + 1] =
+{
+  type = "technology",
+  name = shared.technologies.pheromone_vent,
+  localised_name = {"technology-name." .. shared.technologies.pheromone_vent},
+  localised_description = {"technology-description." .. shared.technologies.pheromone_vent},
+  icon = "__base__/graphics/technology/military.png",
+  icon_size = 256,
+  order = "z[hive]-f[pheromone-vent]",
+  prerequisites = {shared.technologies.worms_small},
+  effects = {unlock(shared.recipes.pheromone_vent)},
+  unit =
+  {
+    count = 100,
+    time = 30,
+    ingredients = {{shared.items.pollution_science_pack, 1}}
+  }
+}
+
+-- Attack Group Size (0.9.0): infinite, prereq hm-pheromone-vent. Adds
+-- pheromone_vent.tech_increment per completed level to the vent's base size.
+-- Effect is applied at runtime (script/vent.lua); the `nothing` effect on the
+-- prototype is purely for the GUI description.
+techs[#techs + 1] =
+{
+  type = "technology",
+  name = shared.technologies.attack_group_size,
+  localised_name = {"technology-name." .. shared.technologies.attack_group_size},
+  localised_description = {"technology-description." .. shared.technologies.attack_group_size},
+  icon = "__base__/graphics/technology/stronger-explosives-1.png",
+  icon_size = 256,
+  order = "z[hive]-g[attack-group-size]",
+  max_level = "infinite",
+  prerequisites = {shared.technologies.pheromone_vent},
+  effects =
+  {
+    {
+      type = "nothing",
+      effect_description = {"effect-description." .. shared.technologies.attack_group_size}
+    }
+  },
+  unit =
+  {
+    count_formula = "2^(L-1)*100",
+    time = 30,
+    ingredients = {{shared.items.pollution_science_pack, 1}}
+  }
+}
+
 techs[#techs + 1] =
 {
   type = "technology",

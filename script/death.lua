@@ -98,6 +98,8 @@ function M.on_removed(event)
     Hive.untrack(entity)
   elseif entity.name == shared.entities.hive_node then
     Hive.untrack_node(entity)
+  elseif entity.name == shared.entities.pheromone_vent then
+    State.get().pheromone_vents[entity.unit_number] = nil
   elseif entity.name == shared.entities.pollution_generator then
     State.get().pollution_generators[entity.unit_number] = nil
   elseif entity.name == shared.entities.hive_storage then

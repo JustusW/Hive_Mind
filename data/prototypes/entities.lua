@@ -158,6 +158,44 @@ hide_sprite(hive_node.recharging_animation)
 hive_node.recharging_light      = nil
 hive_node.base_animation        = space_age_assets.gleba_spawner_small_animation()
 
+-- ── Pheromone Vent ───────────────────────────────────────────────────────────
+-- A recoloured Hive Node that diverts the network's incoming biter stream to
+-- itself, gathers biters, and dispatches them as an autonomous attack group.
+-- No creep growth, no recruitment range, no storage, no construction zone.
+-- Buildable anywhere; build flow charges no pollution and skips placement-
+-- zone checks.
+
+local pheromone_vent_tint = {r = 0.85, g = 0.10, b = 0.10, a = 1}
+
+local pheromone_vent = table.deepcopy(roboport_proto)
+pheromone_vent.name                  = shared.entities.pheromone_vent
+pheromone_vent.localised_name        = {"entity-name."        .. shared.entities.pheromone_vent}
+pheromone_vent.localised_description = {"entity-description." .. shared.entities.pheromone_vent}
+pheromone_vent.minable               = nil
+pheromone_vent.max_health            = 1000
+pheromone_vent.logistics_radius      = 0
+pheromone_vent.construction_radius   = 0
+pheromone_vent.robot_slots_count     = 0
+pheromone_vent.material_slots_count  = 0
+pheromone_vent.energy_source         = {type = "void"}
+pheromone_vent.energy_usage          = "1W"
+pheromone_vent.charging_energy       = "1MW"
+pheromone_vent.recharge_minimum      = "1MJ"
+pheromone_vent.icon                  = space_age_assets.gleba_spawner_small_icon
+pheromone_vent.icon_size             = space_age_assets.icon_size
+pheromone_vent.icons                 = nil
+hide_sprite(pheromone_vent.base)
+hide_sprite(pheromone_vent.base_patch)
+hide_sprite(pheromone_vent.door_animation_up)
+hide_sprite(pheromone_vent.door_animation_down)
+hide_sprite(pheromone_vent.recharging_animation)
+pheromone_vent.recharging_light      = nil
+do
+  local anim = space_age_assets.gleba_spawner_small_animation()
+  tint_sprite(anim, pheromone_vent_tint)
+  pheromone_vent.base_animation      = anim
+end
+
 -- ── Hive Lab ──────────────────────────────────────────────────────────────────
 
 local hive_lab = table.deepcopy(lab_proto)
@@ -312,7 +350,8 @@ local entities =
 {
   hive, hive_node, hive_lab,
   hive_worker, hive_storage, pollution_gen,
-  spawner_ghost, spitter_spawner_ghost
+  spawner_ghost, spitter_spawner_ghost,
+  pheromone_vent
 }
 for _, w in pairs(worm_proxies) do
   entities[#entities + 1] = w

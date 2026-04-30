@@ -89,6 +89,7 @@ function M.configure(force)
   on_tech(shared.technologies.hive_spawners,
           {shared.recipes.hive_node, shared.recipes.hive_spawner, shared.recipes.hive_spitter_spawner})
   on_tech(shared.technologies.hive_labs,     {shared.recipes.hive_lab})
+  on_tech(shared.technologies.pheromone_vent, {shared.recipes.pheromone_vent})
   for _, tier in pairs(shared.worm_tiers) do
     on_tech(shared.worm[tier].tech, {shared.worm[tier].recipe})
   end

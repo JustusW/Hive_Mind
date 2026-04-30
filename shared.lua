@@ -29,7 +29,8 @@ shared.entities =
   hive_worker = "hm-hive-worker",
   pollution_generator = "hm-pollution-generator",
   spawner_ghost = "hm-spawner-ghost",
-  spitter_spawner_ghost = "hm-spitter-spawner-ghost"
+  spitter_spawner_ghost = "hm-spitter-spawner-ghost",
+  pheromone_vent = "hm-pheromone-vent"
 }
 
 shared.items =
@@ -42,7 +43,8 @@ shared.items =
   pheromones = "hm-pheromones",
   pollution = "hm-pollution",
   pollution_science_pack = "hm-pollution-science-pack",
-  pollution_generator = "hm-pollution-generator"
+  pollution_generator = "hm-pollution-generator",
+  pheromone_vent = "hm-pheromone-vent"
 }
 
 shared.recipes =
@@ -54,7 +56,8 @@ shared.recipes =
   hive_spitter_spawner = "hm-spitter-spawner",
   pheromones_on = "hm-pheromones-on",
   pheromones_off = "hm-pheromones-off",
-  pollution_generator = "hm-pollution-generator"
+  pollution_generator = "hm-pollution-generator",
+  pheromone_vent = "hm-pheromone-vent"
 }
 
 shared.technologies =
@@ -66,7 +69,9 @@ shared.technologies =
   worms_big = "hm-worms-big",
   worms_behemoth = "hm-worms-behemoth",
   attraction_reach = "hm-attraction-reach",
-  hive_supremacy = "hm-hive-supremacy"
+  hive_supremacy = "hm-hive-supremacy",
+  pheromone_vent = "hm-pheromone-vent",
+  attack_group_size = "hm-attack-group-size"
 }
 
 -- Infinite attraction-reach tech: each level adds this fraction to the
@@ -206,6 +211,23 @@ shared.recruit =
   -- When true, attack-group biters also consume tokens. Default false:
   -- pollution-driven biters bypass the throttle.
   gate_attack_groups = false
+}
+
+-- Pheromone Vent tunables (0.9.0). The vent attracts biters anchored to the
+-- placing player's network, gathers them, and dispatches as an autonomous
+-- attack group when the threshold is met.
+shared.pheromone_vent =
+{
+  -- Base attack-group size before tech / mode multipliers.
+  base_size      = 5,
+  -- hm-attack-group-size infinite tech adds this much to base_size per level.
+  tech_increment = 2,
+  -- Per-vent mode multiplier on the tech-adjusted base size.
+  mode_factor    = { small = 0.5, default = 1.0, large = 2.0 },
+  -- Tile radius around a vent in which biters count as "arrived".
+  arrival_radius = 3,
+  -- Build cost (pollution) — same as a hive node by default.
+  build_cost     = 200
 }
 
 -- Hive Supremacy: damage applied to non-hive entities standing on creep,

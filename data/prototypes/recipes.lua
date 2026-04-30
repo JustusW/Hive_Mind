@@ -67,6 +67,18 @@ local recipes =
     ingredients = {},
     results = {{type = "item", name = shared.items.hive_spitter_spawner, amount = 1}}
   },
+  -- Pheromone Vent (0.9.0): gated by hm-pheromone-vent tech (prereq Small Worms).
+  -- Free to place; intermediate-product subgroup, alongside the other hive buildings.
+  {
+    type = "recipe",
+    name = shared.recipes.pheromone_vent,
+    localised_name = {"recipe-name." .. shared.recipes.pheromone_vent},
+    subgroup = subgroup_other,
+    enabled = false,
+    energy_required = 0.5,
+    ingredients = {},
+    results = {{type = "item", name = shared.items.pheromone_vent, amount = 1}}
+  },
   -- Debug pollution generator: free, always enabled. Gate behind a startup
   -- setting before shipping (see design.md "Debug fixtures").
   {

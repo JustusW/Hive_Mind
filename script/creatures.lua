@@ -313,14 +313,29 @@ local function bucket_for_member(member, ctx)
   return bucket, network
 end
 
+-- Per-unit destination resolver. Priority:
+--   1. Pheromone player (existing rule).
+--   2. Closest non-full pheromone vent on `network` to the unit.
+--   3. The recruiter's default `target` (the recruiter itself or a fallback).
+local function resolve_destination(unit, default_target, ctx, network)
+  if ctx.pheromone_player then
+    return {position = ctx.pheromone_player.position}
+  end
+  local Vent = require("script.vent")
+  local vent = Vent.closest_non_full_for_unit(unit, network)
+  if vent then return {entity = vent} end
+  return default_target
+end
+
 -- Recruit (and reassign) any eligible units inside `radius` of `recruiter`,
 -- commanding each toward `target`. `target` is either an entity (walked to
 -- via go_to_location with radius 5) or a position table {position = {...}}
 -- (walked to via go_to_location with radius 1, used for pheromone players).
 --
 -- 0.9.0: per-candidate gate. Attack-group members bypass; else require a
--- token from the network's bucket.
-local function recruit_around(recruiter, radius, target, ctx, bucket)
+-- token from the network's bucket. Per-candidate destination resolution
+-- considers pheromone vents on the recruiter's network.
+local function recruit_around(recruiter, radius, default_target, ctx, bucket, network)
   local enemy_force = ctx.enemy_force
   local hive_force  = ctx.hive_force
   local units = recruiter.surface.find_entities_filtered{
@@ -339,6 +354,7 @@ local function recruit_around(recruiter, radius, target, ctx, bucket)
       end
       if recruit then
         if unit.force == enemy_force then unit.force = hive_force end
+        local target = resolve_destination(unit, default_target, ctx, network)
         if target.position then
           command_unit_to_position(unit, target.position)
         else
@@ -385,31 +401,24 @@ function M.recruit_at_member(entity, kind, ctx)
 
   -- Resolve and refresh the network's recruit bucket. Anchor refresh of
   -- spawner_count happens here when `entity.unit_number == network.key`.
-  local bucket = bucket_for_member(entity, ctx)
+  local bucket, network = bucket_for_member(entity, ctx)
 
   if kind == "hive" then
     if ctx.pheromone_player then
       disgorge_hive_units(entity, ctx.pheromone_player.position, ctx.hive_force)
     end
-    local target = ctx.pheromone_player
-                 and {position = ctx.pheromone_player.position}
-                 or  {entity = entity}
+    local default_target = {entity = entity}
     local radius = shared.ranges.hive * ctx.factor
-    recruit_around(entity, radius, target, ctx, bucket)
+    recruit_around(entity, radius, default_target, ctx, bucket, network)
   elseif kind == "hive_node" then
-    local target
-    if ctx.pheromone_player then
-      target = {position = ctx.pheromone_player.position}
-    else
-      local hive = M.cached_nearest_hive(entity, ctx.hives)
-      if hive then
-        -- Target is the node itself; node-side absorption picks it up.
-        target = {entity = entity}
-      end
-    end
-    if target then
+    -- Default target for a node-recruited unit is the node itself; node-side
+    -- absorption picks it up. Pheromone player and pheromone vents override
+    -- per unit inside resolve_destination.
+    local hive = M.cached_nearest_hive(entity, ctx.hives)
+    local default_target = hive and {entity = entity} or nil
+    if default_target then
       local radius = shared.ranges.hive_node * ctx.factor
-      recruit_around(entity, radius, target, ctx, bucket)
+      recruit_around(entity, radius, default_target, ctx, bucket, network)
     end
   end
 end

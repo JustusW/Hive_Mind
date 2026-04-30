@@ -26,6 +26,7 @@ local Hive      = require("script.hive")
 local Cost      = require("script.cost")
 local Death     = require("script.death")
 local Workers   = require("script.workers")
+local Vent      = require("script.vent")
 
 local M = {}
 
@@ -261,6 +262,17 @@ function M.on_built(event)
       return
     end
 
+    -- Pheromone Vent (0.9.0): direct-placed, free, buildable anywhere. No
+    -- construction-zone check, no cost, no ghost/worker pipeline. Register
+    -- and refund the cursor item.
+    if entity.name == shared.entities.pheromone_vent then
+      Vent.on_built(entity, player_index)
+      if entity.valid then
+        Cost.refund_player_item(player_index, shared.items.pheromone_vent)
+      end
+      return
+    end
+
     local refund_item = placed_entity_item(entity.name)
     if refund_item then
       charge_and_ghostify(entity, player_index, refund_item)
@@ -282,6 +294,10 @@ function M.on_built(event)
   end
   if entity.name == shared.entities.pollution_generator then
     State.get().pollution_generators[entity.unit_number] = entity
+    return
+  end
+  if entity.name == shared.entities.pheromone_vent then
+    Vent.on_built(entity, nil)
     return
   end
   -- Spawner / worm / spitter-spawner proxy → real swap.

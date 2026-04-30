@@ -16,6 +16,7 @@ local Force     = require("script.force")
 local Hive      = require("script.hive")
 local Creatures = require("script.creatures")
 local Telemetry = require("script.telemetry")
+local Vent      = require("script.vent")
 
 local M = {}
 
@@ -85,6 +86,9 @@ function M.tick(tick)
   end
 
   s.scan_cursor = (s.scan_cursor + per_tick) % N
+
+  -- Pheromone-vent arrival scan rides the same scan cadence and work-spread.
+  Telemetry.measure("recruit", function() Vent.tick(tick) end)
 end
 
 return M
