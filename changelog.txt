@@ -1,4 +1,38 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.0
+Date: 2026-04-30
+  Renamed:
+    - Mod retitled from "Hive Mind Reloaded" to "Hive Mind Reworked".
+  Major:
+    - Replaced the flying construction-bot pipeline with a unit-based worker dispatcher (script/workers.lua). Hive workers are now ground-walking units, not flying robots.
+    - Worker base is small-wriggler-pentapod when Space Age is loaded; falls back to small-biter otherwise.
+    - Direct placement now converts the placed entity to a ghost and queues it on the dispatcher so a worker walks out of the nearest hive and materialises it. The hive itself is the only direct-placed building (no workers exist before the first hive lands).
+    - Hive Nodes also recruit creatures within their own 50×50 box, scaled by the Attraction Reach tech.
+    - Hive Node placement extends the network by its own reach — a node is buildable wherever its 50×50 box would connect to the existing network.
+    - Eden creep growth replaced by deterministic Chebyshev ring fill: creep stays inside the hive's axis-aligned box, no fingers, no offshoots.
+    - New "Reject the Hive" button next to "Join the Hive". Rejection is permanent for the session.
+    - New infinite Attraction Reach tech (+10% recruitment radius per level).
+    - New spitter spawner item / proxy / recipe — same mechanics as the biter spawner.
+    - Vanilla research is hidden on the hive force; only hm-* techs appear in the tree.
+    - Loadout watchdog ensures every director carries one of every currently-buildable item and pins them to the quickbar.
+    - Auto-refund-on-place: cursor item refills after every successful placement (cursor first, main inventory fallback).
+    - Cost.consume pre-checks the network's pollution capacity and only mutates state on success — failed placements never burn biters.
+    - Insufficient-pollution message now reports actual need vs have side-by-side.
+    - Placements over trees / rocks / cliffs are refused and any auto-deconstruction order on those obstructions is cancelled.
+    - Ghosts that cannot be fulfilled (tech, obstruction, charge failure, missing item proto) are destroyed instead of left lingering.
+    - Hive workers are excluded from creature roles so the absorber can't try to file them as hm-creature-hm-hive-worker (which would crash on_tick).
+  Visual:
+    - Hive renders as a 2× scaled gleba-spawner ("egg raft") tinted orange-red when Space Age is loaded; falls back to a tinted biter-spawner.
+    - Floating pollution label above each hive shows the network's available pollution, recoloured green / amber / red.
+    - Clicking a hive routes player.opened to its hidden storage chest so the inventory you care about pops up.
+    - Reject button + Join button live in a private hm-button-flow under player.gui.top, so destroying the flow leaves no empty mod_gui frame.
+    - Creep is back to a single royal-purple tile.
+    - Build cost surfaces in every placeable item's tooltip.
+  Cleanup:
+    - shared.ranges.recruit subsumed by ranges.hive / ranges.hive_node.
+    - hm-construction-robot / Hive.init / Hive.tick_robots / on_robot_built handler removed.
+    - hive_storage chest still exists internally but the click is transparently routed to it.
+---------------------------------------------------------------------------------------------------
 Version: 0.6.0
 Date: 2026-04-29
   Major:

@@ -1,4 +1,4 @@
-# Hive Mind Reloaded — Requirements
+# Hive Mind Reworked — Requirements
 
 You play a hive mind, not an engineer. You direct biters instead of crafting circuits.
 

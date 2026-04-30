@@ -184,12 +184,19 @@ if hive_lab.working_visualisations then hive_lab.working_visualisations = nil en
 if hive_lab.light                  then hive_lab.light = nil end
 
 -- ── Hive Worker ───────────────────────────────────────────────────────────────
--- A unit (small-biter clone) commanded by the script-side dispatcher in
--- script/workers.lua. It walks to a ghost, materialises it, and dies on
--- arrival. No flying, no logistic-bot AI — just a unit with go_to_location
--- commands, so pathfinding and animation are handled by the engine.
+-- A unit commanded by the script-side dispatcher in script/workers.lua. It
+-- walks to a ghost, materialises it, and dies on arrival. No flying, no
+-- logistic-bot AI — just a unit with go_to_location commands, so pathfinding
+-- and animation are handled by the engine.
+--
+-- Base prototype is `small-wriggler-pentapod` (the actual Gleba wiggler) when
+-- Space Age is loaded. Falls back to `small-biter` so the data stage still
+-- loads in vanilla profiles. Either way, the entity name we register stays
+-- `hm-hive-worker` so script lookups don't need to know which base was used.
+local worker_base = data.raw["unit"]["small-wriggler-pentapod"]
+                 or data.raw["unit"]["small-biter"]
 
-local hive_worker = table.deepcopy(data.raw["unit"]["small-biter"])
+local hive_worker = table.deepcopy(worker_base)
 hive_worker.name                    = shared.entities.hive_worker
 hive_worker.localised_name          = {"entity-name."        .. shared.entities.hive_worker}
 hive_worker.localised_description   = {"entity-description." .. shared.entities.hive_worker}

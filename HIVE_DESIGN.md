@@ -1,4 +1,4 @@
-# Hive Mind Reloaded — Design Notes
+# Hive Mind Reworked — Design Notes
 
 Implementation choices and engine-level details that the requirements doc deliberately leaves out. Read [HIVE_REBOOT_REQUIREMENTS.md](HIVE_REBOOT_REQUIREMENTS.md) first.
 
@@ -53,7 +53,7 @@ Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive stor
 
 The hive worker is a `unit` (biter clone, hive-tinted, hive-force) commanded by a script-side dispatcher. There is no roboport-driven build pipeline: the hive prototype keeps `robot_slots_count = 0` and does no native auto-building. Every ghost is fulfilled by a worker that walks from the nearest hive to the build site, calls `surface.create_entity{raise_built = true}` to materialise it, and dies with a corpse animation.
 
-- `hm-hive-worker` is a unit prototype based on `small-biter`. Visible, ground-bound, friendly with enemy/spectator/hivemind. Health is high but not invulnerable.
+- `hm-hive-worker` is a unit prototype based on `small-wriggler-pentapod` (the actual wiggler) when Space Age is loaded, falling back to `small-biter` otherwise. Visible, ground-bound, friendly with enemy/spectator/hivemind. Health is high but not invulnerable.
 - `Workers.queue(ghost)` enqueues a pending materialisation. `fulfill_ghost` calls this after passing the tech / obstruction / consume guards — the chest insert + bot pickup hand-off is gone.
 - `Workers.tick()` runs every `shared.intervals.workers` ticks. It validates each pending job (ghost still valid, worker still valid, target still in range), spawns a worker at the closest in-network hive when capacity allows, and checks each in-flight worker's distance to its target. Within `WORKERS_ARRIVAL_RADIUS` tiles of the ghost the worker calls `surface.create_entity` for the ghost's entity name (with `raise_built = true`), destroys the ghost, and dies via `Hive.spawn_worker_corpse`.
 - A worker that doesn't reach its target inside `WORKERS_TIMEOUT_TICKS` is abandoned (killed) and its job is requeued so a fresh worker can try.

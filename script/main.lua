@@ -1,4 +1,4 @@
--- Hive Mind Reloaded — runtime orchestrator.
+-- Hive Mind Reworked — runtime orchestrator.
 --
 -- This file does no work itself. It wires up:
 --   * lifecycle hooks (on_init / on_configuration_changed)

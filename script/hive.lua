@@ -122,18 +122,24 @@ end
 
 -- ── Worker corpse ─────────────────────────────────────────────────────────────
 
--- Spawn a small-biter corpse at `entity` to fake a death animation.
--- Used when a hive worker delivers a build and we silently destroy it
--- (we can't use entity.die() because that would re-enter on_entity_died).
+-- Spawn a corpse at `entity` to fake a death animation. Picks the corpse
+-- matching the worker's base prototype: wriggler corpse if Space Age is
+-- loaded, biter corpse otherwise. Used when a hive worker delivers a build
+-- and we silently destroy it (we can't use entity.die() because that would
+-- re-enter on_entity_died with a death-effect cascade we don't want for a
+-- completed-delivery teardown).
 function M.spawn_worker_corpse(entity)
   if not (entity and entity.valid) then return end
-  local corpse_name = "small-biter-corpse"
-  if prototypes.entity[corpse_name] then
-    pcall(function()
-      entity.surface.create_entity{
-        name = corpse_name, position = entity.position, force = entity.force
-      }
-    end)
+  local candidates = {"small-wriggler-pentapod-corpse", "small-biter-corpse"}
+  for _, name in ipairs(candidates) do
+    if prototypes.entity[name] then
+      pcall(function()
+        entity.surface.create_entity{
+          name = name, position = entity.position, force = entity.force
+        }
+      end)
+      return
+    end
   end
 end
 

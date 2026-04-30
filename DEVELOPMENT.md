@@ -48,6 +48,12 @@ This repository is set up for local Factorio mod development on Windows.
    powershell -ExecutionPolicy Bypass -File .\tools\check-runtime.ps1
    ```
 
+7. Pack a release zip for the mod portal under `dist/`:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\tools\build.ps1
+   ```
+
 Run the validation helpers one at a time. They both rewrite the isolated dev profile and can collide if launched in parallel.
 
 ## Notes

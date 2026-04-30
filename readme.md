@@ -1,4 +1,4 @@
-# Hive Mind Reloaded
+# Hive Mind Reworked
 
 A Factorio mod where you leave your engineer life behind and direct a biter hive.
 
