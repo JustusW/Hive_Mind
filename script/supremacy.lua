@@ -50,8 +50,26 @@ local SKIP_TYPE = {
   ["explosion"]          = true,
   ["construction-robot"] = true,
   ["logistic-robot"]     = true,
-  ["spider-leg"]         = true
+  ["spider-leg"]         = true,
+  -- Rocks / scenery: indestructible, prototype lacks max_health on this
+  -- engine and accessing it throws.
+  ["simple-entity"]      = true,
+  ["decorative"]         = true,
+  ["cliff"]              = true
 }
+
+-- Read max_health from an entity safely. Returns nil for entities whose
+-- prototype doesn't expose the key (rocks, decoratives, anything with a
+-- non-health LuaEntityPrototype variant on this engine).
+local function safe_max_health(entity)
+  local proto = entity.prototype
+  if proto then
+    local ok, h = pcall(function() return proto.max_health end)
+    if ok and h and h > 0 then return h end
+  end
+  if entity.health and entity.health > 0 then return entity.health end
+  return nil
+end
 
 local function tree_pollution_amount(entity)
   local proto = entity.prototype
@@ -119,24 +137,29 @@ local function rebuild_cache(member, range, hive_force, now)
   -- running engine, so unit_number-keyed lookups dropped every candidate.
   for _, entity in ipairs(found) do
     if entity.valid and not SKIP_TYPE[entity.type] then
-      local pos  = entity.position
-      local tile = surface.get_tile(pos.x, pos.y)
-      if tile and tile.valid and tile.name == creep_name then
-        local is_tree = entity.type == "tree"
-        local lifetime = is_tree and shared.supremacy.tree_lifetime
-                                  or shared.supremacy.building_lifetime
-        local max_hp = (entity.prototype and entity.prototype.max_health)
-                       or entity.health or 50
-        rec.entries[#rec.entries + 1] = {
-          entity           = entity,
-          lifetime_seconds = lifetime,
-          is_tree          = is_tree,
-          pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
-          dmg_per_tick     = damage_per_tick(max_hp, lifetime)
-        }
-        added = added + 1
+      local max_hp = safe_max_health(entity)
+      if max_hp then
+        local pos  = entity.position
+        local tile = surface.get_tile(pos.x, pos.y)
+        if tile and tile.valid and tile.name == creep_name then
+          local is_tree = entity.type == "tree"
+          local lifetime = is_tree and shared.supremacy.tree_lifetime
+                                    or shared.supremacy.building_lifetime
+          rec.entries[#rec.entries + 1] = {
+            entity           = entity,
+            lifetime_seconds = lifetime,
+            is_tree          = is_tree,
+            pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
+            dmg_per_tick     = damage_per_tick(max_hp, lifetime)
+          }
+          added = added + 1
+        else
+          Telemetry.bump_supremacy("on_creep_skip")
+        end
       else
-        Telemetry.bump_supremacy("on_creep_skip")
+        -- No reachable max_health → not damageable. Reuse the no_unit_number
+        -- counter as a "skipped: no health" tally for now.
+        Telemetry.bump_supremacy("no_unit_number")
       end
     end
   end

@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.5
+Date: 2026-04-30
+  Bugfixes:
+    - Fixed crash on save-load: "LuaEntityPrototype doesn't contain key max_health." Removing the unit_number filter in 0.9.4 exposed entity types whose prototype doesn't expose max_health (rocks / simple-entity / decoratives). Added simple-entity, decorative, and cliff to the supremacy skip list, and pcall-wrap the prototype.max_health read with a fallback to entity.health.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.4
 Date: 2026-04-30
   Bugfixes:
