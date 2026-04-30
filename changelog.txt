@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.14
+Date: 2026-04-30
+  Bugfixes:
+    - Multiplayer: hive-side entities can now actually have their deconstruction marks cancelled. Director.on_marked_for_deconstruction was only calling entity.cancel_deconstruction(hive_force), which is a no-op when the marking force is anything other than hivemind (e.g., a non-hive player on the regular `player` force in MP). The handler now scopes itself to hive-owned entities (hive force, plus post-swap player-placed enemy spawners/worms) and cancels for every existing force.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.13
 Date: 2026-04-30
   Changes:

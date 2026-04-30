@@ -278,19 +278,46 @@ end
 
 -- ── Deconstruction lockdown ──────────────────────────────────────────────────
 
--- The hive does not deconstruct. Cancel any deconstruction order keyed to
--- the hive force regardless of how it got there: a hive player pressing the
--- decon shortcut, or the engine auto-marking a tree when a director ghosts a
--- building on top of it. Player-initiated marks also get the explanatory
--- chat message; engine-driven marks (no player_index) are just cancelled
--- silently so the player isn't spammed during routine placement.
+-- The hive does not deconstruct anything it owns. Cancel deconstruction
+-- orders on hive-side entities regardless of which force scheduled the
+-- mark — multiplayer setups can leave the marking force at `player` or any
+-- non-hive force, and `entity.cancel_deconstruction(force)` only undoes
+-- marks owned by the supplied force.
+--
+-- We only intervene when the entity is hive-side (hive force OR a
+-- post-swap player-placed enemy entity). Marks on regular player-force
+-- buildings are someone else's business and stay untouched.
+local function is_hive_owned(entity, hive_force, enemy_force)
+  if not (entity and entity.valid) then return false end
+  if hive_force and entity.force == hive_force then return true end
+  if enemy_force and entity.force == enemy_force then
+    -- Only player-placed enemy entities are hive-managed; wild nests are
+    -- also enemy-force but we don't care if the player decons those.
+    -- Distinguish by checking if the entity's name matches one of the
+    -- player-placed real names. Cheaper than a state lookup.
+    local n = entity.name
+    if n == "biter-spawner" or n == "spitter-spawner" then return true end
+    if n:find("worm%-turret$") then return true end
+  end
+  return false
+end
+
 function M.on_marked_for_deconstruction(event)
   local entity = event.entity
   if not (entity and entity.valid) then return end
-  local hive_force = Force.get_hive()
-  if hive_force then
-    entity.cancel_deconstruction(hive_force)
+  local hive_force  = Force.get_hive()
+  local enemy_force = Force.get_enemy()
+
+  if not is_hive_owned(entity, hive_force, enemy_force) then return end
+
+  -- Cancel for every force that could have scheduled the mark. Iterating
+  -- game.forces is cheap (a handful of forces in any save) and lets us
+  -- handle multiplayer where a non-hive player on `player` (or any other
+  -- force) tries to decon a hive-side entity.
+  for _, force in pairs(game.forces) do
+    entity.cancel_deconstruction(force)
   end
+
   if event.player_index then
     local player = game.get_player(event.player_index)
     if M.is_player(player) then
