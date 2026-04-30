@@ -275,6 +275,7 @@ local function bucket_for_member(member, ctx)
   local s = ctx.state
   s.recruit_buckets = s.recruit_buckets or {}
   local bucket = s.recruit_buckets[network.key]
+  local just_created = false
   if not bucket then
     bucket = {
       tokens             = 0,
@@ -283,6 +284,7 @@ local function bucket_for_member(member, ctx)
       spawner_count_tick = nil
     }
     s.recruit_buckets[network.key] = bucket
+    just_created = true
   end
 
   -- Refresh spawner count when we're processing the network's anchor
@@ -304,9 +306,9 @@ local function bucket_for_member(member, ctx)
   bucket.tokens    = math.min(cap, bucket.tokens + R * dt)
   bucket.last_tick = ctx.tick
 
-  -- Newly-formed networks start at full cap so a freshly-built hive isn't
-  -- rate-limited from t=0.
-  if bucket.spawner_count_tick == nil and bucket.tokens == 0 and cap > 0 then
+  -- Newly-formed network whose anchor just got its first spawner_count: prime
+  -- the bucket to full cap so the player isn't rate-limited from t=0.
+  if just_created and cap > 0 then
     bucket.tokens = cap
   end
 
