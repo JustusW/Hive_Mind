@@ -51,9 +51,9 @@ local SKIP_TYPE = {
   ["construction-robot"] = true,
   ["logistic-robot"]     = true,
   ["spider-leg"]         = true,
-  -- Rocks / scenery: indestructible, prototype lacks max_health on this
-  -- engine and accessing it throws.
-  ["simple-entity"]      = true,
+  -- Decorative scenery and cliffs are genuinely indestructible.
+  -- simple-entity (rocks) is intentionally NOT here so rocks DO take damage;
+  -- safe_max_health filters out the truly-no-health variants.
   ["decorative"]         = true,
   ["cliff"]              = true
 }
@@ -180,7 +180,18 @@ local function damage_cache(rec, hive_force)
       local surface = entity.surface
       Telemetry.bump_supremacy("damage_calls")
       Telemetry.bump_op("damage")
-      entity.damage(e.dmg_per_tick, hive_force, "physical")
+      -- Trees take massive physical resistance in vanilla (typically -5/-50%),
+      -- so a 3 dps physical hit floors to 1 and they get stuck at 1 HP. Use
+      -- "fire" for trees (100% damage in vanilla) and "physical" for the
+      -- rest.
+      local dtype = e.is_tree and "fire" or "physical"
+      entity.damage(e.dmg_per_tick, hive_force, dtype)
+      -- If damage dropped the entity to a sliver but not over the line,
+      -- finish it. Prevents the "tree stuck at 1 HP" failure mode where
+      -- per-tick damage is rounded into the resistance floor.
+      if entity.valid and entity.health and entity.health <= 1 then
+        entity.die(hive_force)
+      end
       if not entity.valid then
         Telemetry.bump_supremacy("damage_killed")
         if e.is_tree and e.pollution_burst > 0 and surface and surface.valid then

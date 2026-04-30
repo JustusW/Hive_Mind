@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.6
+Date: 2026-04-30
+  Bugfixes:
+    - Rocks now take supremacy damage. simple-entity is no longer in the skip list — safe_max_health filters out the truly-no-health variants while letting damageable rocks through.
+    - Trees no longer get stuck at 1 HP. Vanilla trees have very high physical resistance, which floored the per-tick damage to 1 and left them undying. Trees are now damaged with "fire" (100% damage in vanilla) instead of "physical". Added a low-HP safety: any entity at <= 1 HP after damage gets entity.die() to finish it.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.5
 Date: 2026-04-30
   Bugfixes:
