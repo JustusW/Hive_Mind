@@ -23,6 +23,7 @@ local Labels    = require("script.labels")
 local Workers   = require("script.workers")
 local Supremacy = require("script.supremacy")
 local Debug     = require("script.debug")
+local Telemetry = require("script.telemetry")
 
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
 
@@ -30,16 +31,19 @@ local function on_tick(event)
   Director.restore_mined_entities()
 
   local tick = event.tick
-  if tick % shared.intervals.recruit == 0 then Creatures.tick_recruitment() end
-  if tick % shared.intervals.absorb  == 0 then Creatures.tick_absorption()  end
-  if tick % shared.intervals.supply  == 0 then Lab.tick_supply()            end
-  if tick % shared.intervals.workers == 0 then Workers.tick()               end
-  if tick % shared.intervals.creep   == 0 then Creep.tick()                 end
-  if tick % shared.intervals.labels  == 0 then Labels.tick()                end
-  if tick % shared.intervals.loadout == 0 then Director.refill_all_loadouts() end
-  if tick % shared.intervals.supremacy == 0 then Supremacy.tick()            end
+  if tick % shared.intervals.recruit   == 0 then Telemetry.measure("recruit",   Creatures.tick_recruitment) end
+  if tick % shared.intervals.absorb    == 0 then Telemetry.measure("absorb",    Creatures.tick_absorption)  end
+  if tick % shared.intervals.supply    == 0 then Lab.tick_supply()                                          end
+  if tick % shared.intervals.workers   == 0 then Telemetry.measure("workers",   Workers.tick)               end
+  if tick % shared.intervals.creep     == 0 then Telemetry.measure("creep",     Creep.tick)                 end
+  if tick % shared.intervals.labels    == 0 then Labels.tick()                                              end
+  if tick % shared.intervals.loadout   == 0 then Director.refill_all_loadouts()                             end
+  if tick % shared.intervals.supremacy == 0 then Telemetry.measure("supremacy", Supremacy.tick)             end
 
   Debug.tick()
+
+  -- Flush perf line on the unified scan cadence.
+  if tick % shared.intervals.scan == 0 then Telemetry.flush_perf(tick) end
 end
 
 -- ── Lifecycle ────────────────────────────────────────────────────────────────
