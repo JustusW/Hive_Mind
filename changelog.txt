@@ -1,4 +1,25 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.0
+Date: 2026-04-30
+  Major:
+    - Recruitment throttling: without pollution, biters now arrive as a steady trickle scaling with how many spawners (any force) sit inside the network's recruit-box union. Default 0.05 biters/sec per spawner, pooled across hives + hive nodes + pheromone vents in the network. With pollution, attack-group biters bypass the throttle and are recruited the moment they enter range.
+    - Pheromone Vent: new buildable. Diverts the network's incoming biter stream and dispatches gathered biters as autonomous attack groups via the engine's unit-group AI. The hive does not target — the engine routes the group. Buildable anywhere, free to place; the placing player must own a hive or the vent collapses on placement. Visually a recoloured Hive Node (deep red).
+    - Network collapse: when the last hive in a network is destroyed, every other hive-side building in that network (hive nodes, pheromone vents, hive labs, hive storage chests) is destroyed too, and any hive workers in the network die. Storage releases stored creatures as live units before destruction. Player-placed biter/spitter spawners and worm turrets are NOT destroyed — they revert to ordinary vanilla nests/turrets on the enemy force. In-tick repositioning (place new hive, old dies) is preserved by checking the world for surviving hives.
+  Tech:
+    - New single-shot tech "Pheromone Vent" (prerequisite Small Worms) unlocks the Pheromone Vent recipe.
+    - New infinite tech "Attack Group Size" (prerequisite Pheromone Vent) adds +2 biters per dispatched group per level.
+  Performance:
+    - Unified per-member scan with work-spread replaces the old separate intervals.recruit (120t) and intervals.absorb (30t) cadences. Each tick processes ceil(N/T) hives + hive nodes on a deterministic rotating cursor (T = intervals.scan = 60), so per-tick scan count is constant relative to network size — no moloch supertick.
+    - Hive nodes now also absorb biters (route into the chest of the cached nearest hive), shortening unit walks across the network.
+    - Workers spawn from the nearest hive OR hive node, whichever is closer to the ghost.
+    - Hive Supremacy now caches its damage candidates per hive, rebuilding the cache every 600t. The 60t damage tick is a cheap walk over the cache; the per-entity surface.get_tile lookup is gone.
+    - Cached `nearest_hive_unit_number` per hive node (lazy invalidation) drops the per-tick O(N×M) lookup for networks with many nodes.
+    - Workers.tick() short-circuits when no jobs are pending.
+  Telemetry:
+    - script-output/hm-debug.txt now appends two log lines per scan flush (every 60 ticks): a [recruit] line with per-network bucket state (tokens, R, spawners) and aggregate group/trickle/skipped counters, plus a [perf] line with per-system millisecond timings. Both gated on the existing Debug enable.
+  Known limitations:
+    - Pheromone Vent mode markers (small / default / large) are deferred to a follow-up. All vents operate in default mode for now; mode still scales with hm-attack-group-size tech.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.1
 Date: 2026-04-30
   Bugfixes:
