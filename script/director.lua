@@ -196,6 +196,11 @@ function M.join(player)
   M.apply(player)
   refill_loadout(player)
   M.update_hive_buttons(player)
+  -- Hand out the starter hive item. Idempotent: subsequent calls are no-ops
+  -- as long as the player has any path to a hive (item / entity / pending
+  -- construction).
+  local Anchor = require("script.anchor")
+  Anchor.ensure_hive_available(player)
   player.print({"gui.hm-hive-joined"})
 end
 

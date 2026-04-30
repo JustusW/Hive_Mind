@@ -27,6 +27,7 @@
 local shared = require("shared")
 local State  = require("script.state")
 local Hive   = require("script.hive")
+local Anchor = require("script.anchor")
 
 local M = {}
 
@@ -141,7 +142,10 @@ function M.tick()
 
   for _, hive in pairs(Hive.all()) do
     local record = Hive.get_storage(hive)
-    if record then
+    -- Skip hives still in their 30-second anchor construction window. Creep
+    -- doesn't spread until the hive is "live"; this gives the player a
+    -- visual cue that the construction has completed.
+    if record and not Anchor.is_building(record) then
       local placed = place_organic_creep(hive, record, hive_r, hive_attempts)
       if placed then
         local tech = hive.force.technologies[shared.technologies.hive_labs]

@@ -27,6 +27,8 @@ local Cost      = require("script.cost")
 local Death     = require("script.death")
 local Workers   = require("script.workers")
 local Vent      = require("script.vent")
+local Anchor    = require("script.anchor")
+local Network   = require("script.network")
 
 local M = {}
 
@@ -216,20 +218,55 @@ local function charge_and_ghostify(entity, player_index, refund_item_name)
   return true
 end
 
--- Hive placed by player. Free; first-hive-ever flips the spawner tech and
--- enables the gated recipes.
-local function on_hive_placed(entity, player_index)
-  Death.destroy_previous_player_hives(player_index, entity)
+-- Anchor placed by player. The starter hive item came from
+-- Anchor.ensure_hive_available; do not refund. We register the entity, give
+-- it a chest, chart its construction zone, then hand off to Anchor.tick to
+-- finalise after the 30-second construction window (recipe unlocks happen
+-- on completion, not on placement).
+local function on_anchor_placed(entity, player_index)
   Hive.track(player_index, entity)
   Hive.create_chest(entity)
   Hive.chart(entity, shared.ranges.hive)
+  Anchor.start_construction(entity, player_index, Hive.get_storage(entity))
+end
 
-  local tech = entity.force.technologies[shared.technologies.hive_spawners]
-  if tech and not tech.researched then tech.researched = true end
-  for _, rname in pairs({shared.recipes.hive_node, shared.recipes.hive_spawner}) do
-    local recipe = entity.force.recipes[rname]
-    if recipe then recipe.enabled = true end
+-- Evolution gate for hive_node placement. Counts existing hive_node entities
+-- in the network the new node would join (using node placement-reach so
+-- chains can extend outward). Returns true if the placement passes; false
+-- after refunding the item and printing the gating message.
+local function pass_node_evolution_gate(entity, player_index)
+  if not (entity and entity.valid) then return true end
+  local enemy = Force.get_enemy()
+  local current_evo = enemy and enemy.evolution_factor or 0
+
+  -- Count hive_node entities already in this network. Hives don't count.
+  local existing = 0
+  local network = Network.resolve_at(entity.surface, entity.position)
+  if network and network.members then
+    for _, m in ipairs(network.members) do
+      if m.kind == "node" and m.entity and m.entity.valid and m.entity ~= entity then
+        existing = existing + 1
+      end
+    end
   end
+  -- New node will be the (existing + 1)th, requiring threshold = existing * step.
+  local step     = (shared.network and shared.network.evolution_step) or 0.05
+  local required = existing * step
+  if current_evo + 1e-9 < required then
+    if player_index then
+      local p = game.get_player(player_index)
+      if p then
+        p.print({"message.hm-node-evolution-gated",
+                 string.format("%.2f", required),
+                 string.format("%.2f", current_evo),
+                 tostring(existing + 1)})
+      end
+      Cost.refund_player_item(player_index, shared.items.hive_node)
+    end
+    entity.destroy()
+    return false
+  end
+  return true
 end
 
 -- ── Event handlers ───────────────────────────────────────────────────────────
@@ -252,13 +289,13 @@ function M.on_built(event)
       return
     end
 
-    -- The hive is the foundational structure: built directly because no
-    -- workers exist before the first hive lands. Everything else is
-    -- replaced with a ghost so a worker walks out of the nearest hive
-    -- and materialises it.
+    -- Anchor placement: the starter hive item came from
+    -- Anchor.ensure_hive_available. Track it, give it a chest, kick off
+    -- the 30-second construction. NO item refund — the player only ever
+    -- gets one starter; if they want it back they have to mine the
+    -- in-progress hive during the construction window.
     if entity.name == shared.entities.hive then
-      on_hive_placed(entity, player_index)
-      Cost.refund_player_item(player_index, shared.items.hive)
+      on_anchor_placed(entity, player_index)
       return
     end
 
@@ -273,6 +310,12 @@ function M.on_built(event)
       return
     end
 
+    -- Evolution-gated node count: refuse a hive_node placement if the
+    -- network already has too many nodes for the current evolution.
+    if entity.name == shared.entities.hive_node then
+      if not pass_node_evolution_gate(entity, player_index) then return end
+    end
+
     local refund_item = placed_entity_item(entity.name)
     if refund_item then
       charge_and_ghostify(entity, player_index, refund_item)
@@ -284,7 +327,12 @@ function M.on_built(event)
   -- tracking / proxy-swap that the engine event delivers without re-running
   -- charge or refund (those happened when the player originally placed).
   if entity.name == shared.entities.hive then
-    on_hive_placed(entity, nil)
+    -- Worker-built hive (rare; promoted-hive create_entity uses raise_built
+    -- = false to skip this path). Treat as a fully-live hive, no anchor
+    -- construction window.
+    Hive.track(nil, entity)
+    Hive.create_chest(entity)
+    Hive.chart(entity, shared.ranges.hive)
     return
   end
   if entity.name == shared.entities.hive_node then

@@ -16,22 +16,31 @@ You play a hive mind, not an engineer. You direct biters instead of crafting cir
 ## Rules
 
 - Joining the hive is permanent for the session. Rejecting is also permanent — buttons never return.
-- One Hive per player. Placing a new one destroys the old one.
-- A destroyed Hive releases all its stored creatures back into the world as living units.
+- The hive is **anchored**: every player gets one Hive item on join, places it once, and that hive cannot be mined after construction. There is no recipe to craft another. Additional hives only exist via the Promote Node action (see "Promotion").
+- A destroyed Hive releases all its stored creatures back into the world as living units. If all your hives are destroyed the network collapses, but you receive a fresh Hive item — the hive force is endless (see "Anchor placement").
 - All hive creatures, recruited biters, and vanilla biters are friendly to each other.
 - The director can place hive buildings, place ghosts of any buildable hive item, and craft pheromones. Nothing else.
 - Placements on top of trees, rocks, or cliffs are refused — the hive does not deconstruct terrain.
 - Ghosts that can't be fulfilled (missing tech, obstruction, insufficient pollution) are destroyed rather than left lingering.
 
+## Anchor placement
+
+- On join you receive a single Hive item. Scout the map (you're on the god controller — fly anywhere, no time pressure) and pick your spot carefully.
+- Placing the Hive starts a **30-second construction**. A chat message warns you: "Hive construction started. It is extremely hard to move and will permanently bind your hive to this position." The construction is firm — there is no cancellation. The 30 seconds exist as a commitment window: enough time to think "wait, this is the wrong spot" before the engineer can react, but not enough time to relocate cheaply.
+- Once the 30 seconds elapse the hive becomes live: recruitment starts, creep starts spreading, the storage chest activates, and the hive can no longer be mined. The placement is permanent.
+- The network only collapses when **every** hive in it is destroyed. Losing one hive (anchor or promoted) while another survives keeps the network alive: the dead hive's storage merges into the surviving hives' shared pool, the network continues operating from whoever remains. Storage is shared across every hive in the network — there is one effective resource pool, not one per hive.
+- The hive is endless: if all your hives are destroyed, the network collapses (existing rule) and you receive a fresh Hive item to plant a new anchor wherever you choose. Losing the network is painful — pollution and creature stockpile are gone, the standing creep is now useless terrain, and the new anchor's 30-second construction restarts the commitment cycle — but it is not run-ending.
+
 ## Buildings
 
-- **Hive** — always available, free to place. Your foothold and recruitment anchor, rendered as a Gleba egg raft even when Space Age is not loaded.
-- **Hive Node** — extends the network. Unlocks when the first Hive is placed. Rendered as a small Gleba egg raft.
+- **Hive** — your anchor, rendered as a Gleba egg raft even when Space Age is not loaded. One per player, given on join, placed once, non-minable after construction. See "Anchor placement".
+- **Hive Node** — extends the network. Unlocks when the first Hive is placed. Rendered as a small Gleba egg raft. Subject to the **evolution-gated node count** (see "Network").
 - **Biter Spawner** — produces biters. Unlocks when the first Hive is placed.
 - **Spitter Spawner** — produces spitters. Unlocks when the first Hive is placed.
 - **Hive Lab** — research. Unlocks when creep first spreads. Rendered as a Biolab.
 - **Worm turrets** (small → behemoth) — defenses. Each tier unlocks via research.
 - **Pheromone Vent** — diverts the network's incoming biter stream and dispatches it as an autonomous attack group. Buildable anywhere, free to place. Unlocks via research after Small Worms. Rendered as a recoloured Hive Node (deep red).
+- **Promote Node** — a single-use marker recipe. Crafting it converts the closest Hive Node within range of the player into a second (or third, etc.) Hive in place. Costs significant pollution. See "Promotion".
 
 Each placeable item lists its pollution cost in its tooltip.
 
@@ -62,6 +71,13 @@ Each placeable item lists its pollution cost in its tooltip.
 - Group composition control.
 - Group recall.
 
+## Promotion
+
+- The anchor is permanent and cannot be relocated. To gain a second recruit pole — to push the network's centre of mass toward a far cluster, for example — you craft **Promote Node** and apply it to an existing Hive Node in your network.
+- The targeted node is destroyed and replaced by a Hive entity at the same position. The new hive participates in the same shared storage as every other hive in the network. Like the anchor, it is non-minable — promotion is a one-way action.
+- Promotion costs significant pollution (initial value 1000, tunable). The source must be a Hive Node in the network. Promoted hives do not count toward the evolution-gated node limit.
+- Promoted hives can themselves be the source for further node chains, so the network grows organically — anchor → nodes → promoted hive → more nodes → etc. — as evolution allows.
+
 ## Network
 
 - Each Hive recruits creatures inside its 100×100 box. Each Hive Node also recruits, inside its own 50×50 box. Both are scaled by the infinite **Attraction Reach** tech (+10% per level), so dropping nodes is the way to spread recruitment outward across the map.
@@ -70,6 +86,7 @@ Each placeable item lists its pollution cost in its tooltip.
 - Connected hives and nodes share one resource pool.
 - Loading a save must preserve or recover hive/node connections; existing hives and nodes in the world remain connected to the construction, recruitment, and storage network.
 - **Node placement exception**: a Hive Node can be placed as long as it would connect to the network — i.e., the new node's own 50×50 box would overlap an existing hive or node — even if the placement position itself sits just outside the current network's build zone. All other buildings still require the placement position to be inside the network's build zone. Pheromone Vents are exempt — they are buildable anywhere.
+- **Evolution-gated node count**: each network's Nth node placement requires the surface's enemy evolution factor to be at or above a threshold. The first node is free; each subsequent node demands more evolution. The engineer's pollution and nest kills drive evolution, so node growth self-paces against engineer progress — you can't node-spam at minute zero, and a runaway engineer unlocks a runaway hive. **Hives do not count toward the node limit** — only Hive Node entities do. A promoted hive removes a node from the count and adds an unlimited hive in its place; you can keep growing nodes around it.
 - A single purple **creep** tile fills the same box outward in Chebyshev rings. Biters move faster on creep. The outermost ~2 rings are progressively patchy, and a single sparse ring extends just past the box, so the silhouette has a slightly irregular, organic edge instead of a perfect square. The fuzzed pattern is stable across save/load.
 
 ## Recruitment

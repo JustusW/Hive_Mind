@@ -116,6 +116,24 @@ local prototypes =
     place_result = shared.entities.pheromone_vent,
     stack_size = 10
   },
+  -- Promote Node marker. Crafting consumes the item (recipe result handled
+  -- by Promote.on_crafted) and triggers conversion of the closest hive_node
+  -- in range to a hive. The item itself has no in-world function — it only
+  -- exists because the recipe needs a result.
+  {
+    type = "item",
+    name = shared.items.promote_node,
+    localised_name = {"item-name." .. shared.items.promote_node},
+    localised_description = {"item-description." .. shared.items.promote_node},
+    icons = {{
+      icon = space_age_assets.gleba_spawner_icon,
+      icon_size = space_age_assets.icon_size,
+      tint = {r = 1.0, g = 0.85, b = 0.20, a = 1}
+    }},
+    subgroup = "production-machine",
+    order = "z[hive]-d[promote-node]",
+    stack_size = 1
+  },
   -- Pollution generator (debug).
   {
     type = "item",

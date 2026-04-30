@@ -200,15 +200,76 @@ local function collapse_orphans(dead_hive)
   end
 end
 
+-- Returns the first surviving hive (excluding `dying`) on `dying`'s network.
+-- nil if the dying hive is the only hive in its network.
+local function surviving_network_mate(dying)
+  if not (dying and dying.valid) then return nil end
+  local network = Network.resolve_at(dying.surface, dying.position)
+  if not network then return nil end
+  for _, hive in pairs(network.hives) do
+    if hive and hive.valid and hive ~= dying then return hive end
+  end
+  return nil
+end
+
+-- Move every stack from the dying hive's chest into a survivor's chest.
+-- Both hives' chests are part of the same shared-storage network, so the
+-- merge is purely physical re-homing — no creature disgorge, no pollution
+-- loss. Returns true if the chest was successfully drained.
+local function merge_chest_into(dying, survivor)
+  local from = Hive.get_chest(dying)
+  local to   = Hive.get_chest(survivor)
+  if not (from and from.valid and to and to.valid) then return false end
+  local from_inv = from.get_inventory(defines.inventory.chest)
+  local to_inv   = to.get_inventory(defines.inventory.chest)
+  if not (from_inv and to_inv) then return false end
+  for i = 1, #from_inv do
+    local stack = from_inv[i]
+    if stack and stack.valid_for_read then
+      to_inv.insert{name = stack.name, count = stack.count}
+    end
+  end
+  from_inv.clear()
+  return true
+end
+
 -- Single handler for on_entity_died, on_robot_mined_entity, script_raised_destroy.
 function M.on_removed(event)
   local entity = event.entity
   if not (entity and entity.valid) then return end
 
   if entity.name == shared.entities.hive then
-    M.release_hive_contents(entity)
-    Hive.untrack(entity)
-    collapse_orphans(entity)
+    -- Shared-storage rule: the network only collapses when EVERY hive in
+    -- it is destroyed. Killing one hive while another survives just merges
+    -- this hive's chest into a surviving hive's chest — nothing else
+    -- changes. The full disgorge / orphan-collection / re-grant pass only
+    -- runs when no network mate remains.
+    local survivor = surviving_network_mate(entity)
+    if survivor then
+      merge_chest_into(entity, survivor)
+      -- Destroy the now-empty chest and untrack the hive without running
+      -- release_hive_contents (no creatures left to release) or
+      -- collapse_orphans (the network is intact).
+      local record = State.get().hive_storage[entity.unit_number]
+      if record and record.chest and record.chest.valid then
+        record.chest.destroy()
+      end
+      Hive.untrack(entity)
+    else
+      M.release_hive_contents(entity)
+      Hive.untrack(entity)
+      collapse_orphans(entity)
+    end
+
+    -- Drop any pending-construction record so the anchor tick doesn't try
+    -- to lock-in a corpse, and re-grant a starter hive to every joined
+    -- player who lost their last hive. The grant is idempotent — players
+    -- who still have a hive get nothing.
+    State.get().pending_anchor_constructions[entity.unit_number] = nil
+    local Anchor = require("script.anchor")
+    for player_index in pairs(State.get().joined_players) do
+      Anchor.ensure_hive_available(game.get_player(player_index))
+    end
   elseif entity.name == shared.entities.hive_node then
     Hive.untrack_node(entity)
   elseif entity.name == shared.entities.pheromone_vent then

@@ -14,6 +14,7 @@
 --   pheromone_vents      [unit_number]        = { entity, placer_player_index, gather_count, seen_units, mode }
 --   vent_cursor          number (rotating index for the per-tick vent arrival scan, 0.9.0)
 --   active_pheromone     nil | { surface_index, position, target_size, gather_count, seen_units, started_tick }
+--   pending_anchor_constructions [unit_number] = { entity, owner_player_index, deadline_tick }
 --   telemetry_recruit    transient counters reset on scan flush
 --
 -- All state lives under storage.hive_reboot. `storage` is the Factorio 2.0
@@ -50,6 +51,7 @@ function M.get()
   if not state.recruit_buckets       then state.recruit_buckets       = {} end
   if not state.pheromone_vents       then state.pheromone_vents       = {} end
   if state.vent_cursor               == nil then state.vent_cursor    = 0  end
+  if not state.pending_anchor_constructions then state.pending_anchor_constructions = {} end
   return state
 end
 

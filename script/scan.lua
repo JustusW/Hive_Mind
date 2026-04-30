@@ -61,25 +61,41 @@ function M.tick(tick)
   local ctx = Creatures.recruit_setup_tick()
   if not ctx then return end
 
-  local absorb_paused = ctx.pheromone_player ~= nil
+  -- Pause absorption while a player pheromone burst is live (was the old
+  -- ctx.pheromone_player rule; ctx.pheromone_burst is the new singleton).
+  local absorb_paused = ctx.pheromone_burst ~= nil
+
+  -- Anchor 30s construction: skip recruit + absorb for any hive whose
+  -- storage record still has a building_until_tick in the future. The hive
+  -- is inert during construction.
+  local Anchor = require("script.anchor")
+  local Hive   = require("script.hive")
 
   for i = 0, per_tick - 1 do
     local idx = (s.scan_cursor + i) % N + 1
     local m = members[idx]
     if m and m.entity and m.entity.valid then
-      Telemetry.bump_scanned(1)
-      Telemetry.measure("recruit", function()
-        Creatures.recruit_at_member(m.entity, m.kind, ctx)
-      end)
-      if not absorb_paused then
-        if m.kind == "hive" then
-          Telemetry.measure("absorb", function()
-            Creatures.absorb_at_hive(m.entity)
-          end)
-        elseif m.kind == "hive_node" then
-          Telemetry.measure("absorb", function()
-            Creatures.absorb_at_node(m.entity, ctx)
-          end)
+      local skip_for_construction = false
+      if m.kind == "hive" then
+        local record = Hive.get_storage(m.entity)
+        if Anchor.is_building(record) then skip_for_construction = true end
+      end
+
+      if not skip_for_construction then
+        Telemetry.bump_scanned(1)
+        Telemetry.measure("recruit", function()
+          Creatures.recruit_at_member(m.entity, m.kind, ctx)
+        end)
+        if not absorb_paused then
+          if m.kind == "hive" then
+            Telemetry.measure("absorb", function()
+              Creatures.absorb_at_hive(m.entity)
+            end)
+          elseif m.kind == "hive_node" then
+            Telemetry.measure("absorb", function()
+              Creatures.absorb_at_node(m.entity, ctx)
+            end)
+          end
         end
       end
     end

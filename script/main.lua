@@ -26,6 +26,8 @@ local Debug     = require("script.debug")
 local Telemetry = require("script.telemetry")
 local Scan      = require("script.scan")
 local Pheromone = require("script.pheromone")
+local Anchor    = require("script.anchor")
+local Promote   = require("script.promote")
 
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
 
@@ -45,6 +47,10 @@ local function on_tick(event)
   if tick % shared.intervals.loadout   == 0 then Director.refill_all_loadouts()                             end
   if tick % shared.intervals.supremacy == 0 then Telemetry.measure("supremacy", Supremacy.tick)             end
   if tick % shared.intervals.scan      == 0 then Pheromone.tick()                                           end
+  -- Anchor construction completion: 1 Hz check is plenty (the 30s window
+  -- has 30 chances to land within ±1 tick of the deadline). Not on the
+  -- scan cadence because Anchor.tick is independent of recruit timing.
+  if tick % 60                         == 0 then Anchor.tick()                                              end
 
   Debug.tick()
 
@@ -130,10 +136,13 @@ script.on_event(e.on_player_gun_inventory_changed,   function(ev) clear_forbidde
 script.on_event(e.on_player_ammo_inventory_changed,  function(ev) clear_forbidden(ev, defines.inventory.character_ammo)  end)
 script.on_event(e.on_player_armor_inventory_changed, function(ev) clear_forbidden(ev, defines.inventory.character_armor) end)
 
--- Pheromone burst: crafting hm-pheromones-on triggers a single-shot burst
--- at the player's position. The recipe still produces an hm-pheromones item
--- as a craft result; Pheromone.on_crafted consumes it on receipt.
-script.on_event(e.on_player_crafted_item, Pheromone.on_crafted)
+-- on_player_crafted_item fan-out. Each handler filters by the recipe's
+-- result item and ignores everything else.
+local function on_crafted_dispatch(event)
+  Pheromone.on_crafted(event)
+  Promote.on_crafted(event)
+end
+script.on_event(e.on_player_crafted_item, on_crafted_dispatch)
 
 -- Build pipeline. Worker materialisations come back through script_raised_built
 -- with player_index = nil; Build.on_built no-ops the cost branches in that

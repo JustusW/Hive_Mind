@@ -44,7 +44,8 @@ shared.items =
   pollution = "hm-pollution",
   pollution_science_pack = "hm-pollution-science-pack",
   pollution_generator = "hm-pollution-generator",
-  pheromone_vent = "hm-pheromone-vent"
+  pheromone_vent = "hm-pheromone-vent",
+  promote_node = "hm-promote-node"
 }
 
 shared.recipes =
@@ -56,7 +57,8 @@ shared.recipes =
   hive_spitter_spawner = "hm-spitter-spawner",
   pheromones_on = "hm-pheromones-on",
   pollution_generator = "hm-pollution-generator",
-  pheromone_vent = "hm-pheromone-vent"
+  pheromone_vent = "hm-pheromone-vent",
+  promote_node = "hm-promote-node"
 }
 
 shared.technologies =
@@ -210,6 +212,31 @@ shared.recruit =
   -- When true, attack-group biters also consume tokens. Default false:
   -- pollution-driven biters bypass the throttle.
   gate_attack_groups = false
+}
+
+-- Anchor placement tunables. Construction time gives the player a window to
+-- mine the in-progress hive and refund the item if they picked the wrong
+-- spot. The anchor is permanent once construction completes.
+shared.anchor =
+{
+  construction_ticks = 30 * 60   -- 30 seconds at 60 UPS
+}
+
+-- Promotion (multi-hive expansion) tunables.
+shared.promotion =
+{
+  cost          = 1000,   -- pollution charged from the network on use
+  search_radius = 20      -- tiles around the player to find the target node
+}
+
+-- Evolution-gated node count.
+--   The Nth node-equivalent (hive_node + non-anchor hive) placement in a
+--   network requires enemy_force.evolution_factor >= (N - 1) * evolution_step.
+--   N = 1 always passes (threshold 0), N = 21 caps at evolution 1.0 with the
+--   default step of 0.05.
+shared.network =
+{
+  evolution_step = 0.05
 }
 
 -- Player pheromone burst tunables. The arrival radius matches the

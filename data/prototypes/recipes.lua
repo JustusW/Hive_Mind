@@ -91,6 +91,23 @@ local recipes =
     ingredients = {},
     results = {{type = "item", name = shared.items.pollution_generator, amount = 1}}
   },
+  -- Promote Node: zero-ingredient marker recipe. Like Release Pheromones,
+  -- the result item is consumed on craft (Promote.on_crafted). The actual
+  -- pollution cost is charged from the network at use time, not as a
+  -- recipe ingredient — this lets the cost be a single tunable
+  -- (shared.promotion.cost) and lets us refund it if no eligible target is
+  -- found near the player. Auto-unlocks alongside hive_spawners on first
+  -- anchor completion.
+  {
+    type = "recipe",
+    name = shared.recipes.promote_node,
+    localised_name = {"recipe-name." .. shared.recipes.promote_node},
+    subgroup = subgroup_pheromones,
+    enabled = false,
+    energy_required = 0.5,
+    ingredients = {},
+    results = {{type = "item", name = shared.items.promote_node, amount = 1}}
+  },
   -- Release Pheromones: one-shot burst trigger. Crafting this recipe locks
   -- a temporary attractor at the player's position; the resulting
   -- hm-pheromones item is consumed on receipt by Pheromone.on_crafted.

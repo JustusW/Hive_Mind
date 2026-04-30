@@ -5,10 +5,12 @@ local shared = require("shared")
 local M = {}
 
 -- Recipes that should always be available to anyone on the hive force,
--- independent of any tech.
+-- independent of any tech. NB: shared.recipes.hive is intentionally NOT in
+-- this list — the hive item is handed out exactly once per player on join
+-- (Director.grant_starter_hive). Crafting more is not allowed; multi-hive
+-- expansion goes through Promote Node.
 local always_enabled_recipes =
 {
-  shared.recipes.hive,
   shared.recipes.pheromones_on,
   shared.recipes.pollution_generator
 }
@@ -86,7 +88,7 @@ function M.configure(force)
     end
   end
   on_tech(shared.technologies.hive_spawners,
-          {shared.recipes.hive_node, shared.recipes.hive_spawner, shared.recipes.hive_spitter_spawner})
+          {shared.recipes.hive_node, shared.recipes.hive_spawner, shared.recipes.hive_spitter_spawner, shared.recipes.promote_node})
   on_tech(shared.technologies.hive_labs,     {shared.recipes.hive_lab})
   on_tech(shared.technologies.pheromone_vent, {shared.recipes.pheromone_vent})
   for _, tier in pairs(shared.worm_tiers) do

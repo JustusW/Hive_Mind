@@ -83,9 +83,42 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 - Cost reads and writes treat the union of all member chests as one virtual inventory.
 - `Network.hives_for_position(surface, position, reach)` accepts an optional `reach` parameter: the seed check uses `s.range + reach` instead of `s.range`. With `reach = 0` (default), the position must be inside an existing structure's box. With `reach = shared.ranges.hive_node`, the position only has to be close enough that the new node's own range would overlap the network — used so the player can extend the network outward by chaining nodes without having to rebuild from inside the previous range. `Cost.placement_reach(entity_name)` returns this value: zero for everything except the hive node.
 
-## Recruitment
+## Anchor placement
 
-- Recruitment fires from the unified per-hive scan (see "Performance — unified scan"), not from a dedicated `intervals.recruit` cadence.
+- The `hm-hive` recipe is removed from the always-enabled set and is not unlockable. Players can never craft a hive item. The only way to obtain one is via `Anchor.ensure_hive_available(player)`, called from `Director.join` and from the network-collapse pass. The function is idempotent: it inserts a single `hm-hive` item into the player's main inventory only if they currently have **no** hive item, **no** hive entity (anchor or promoted), and **no** pending construction. Re-joins, double-calls, or transient states can't produce a duplicate item.
+- The hive force is endless. When all of a player's hives die (network collapse), `Anchor.ensure_hive_available(player)` is called from the collapse handler so the player gets a fresh hive item and can re-anchor. Losing the network still costs them everything else (chest contents, creep, position) — only the right to play continues.
+- The `hm-hive` entity prototype is set `minable = nil` (or has its `minable.result` removed) once construction completes. While in construction it remains minable so the player can cancel and refund.
+- Placement flow:
+  - `Build.on_built` recognises `hm-hive` placements. The hive entity is created normally, its storage chest is created normally, and a record is appended to `state.pending_anchor_constructions[unit_number] = { entity, owner_player_index, deadline_tick = game.tick + shared.anchor.construction_ticks }`.
+  - The hive is flagged in its storage record with `building_until_tick = deadline_tick`. While `game.tick < building_until_tick`, the hive is treated as inert: recruitment skips it (Scan.tick checks the flag), creep growth skips it (Creep.tick checks the flag), labels render "Constructing… Ns", and the lab recipe / pheromone-vent unlock auto-completes do not fire from this hive yet.
+  - A chat message is printed to the placing player at on_built time: `{"message.hm-anchor-construction-started"}` ("Hive construction started. It is extremely hard to move and will permanently bind your hive to this position. Construction takes 30 seconds.").
+  - There is no cancellation. The director permission group already blocks mining at the input layer, and we do not add an exception for in-progress hives. The 30-second window is purely a commitment timer; if the player picks the wrong spot, the only recovery path is to lose the hive in combat (which triggers network collapse + a fresh starter item via the endless-hive rule).
+  - On each on_tick the runtime scans `state.pending_anchor_constructions` for entries whose `deadline_tick <= game.tick`. For each: clear `building_until_tick`, flip the hive prototype's minable status off for that entity (via `entity.minable_flag = false` or by relying on the prototype-level minable removal — TBD which API works at runtime; if neither, gate via the build pipeline's mine-handler), trigger creep auto-research (`hm-hive-spawners` if not already), and remove the entry.
+- If the entity dies (combat, etc.) during construction, the pending record is dropped in the existing `on_entity_died` handler and the player gets nothing back — the same as losing a finished anchor (consistent with the "anchor-loss is catastrophic" design).
+- `state.pending_anchor_constructions` lives in `storage`, so a 30-second placement survives save/load — the deadline_tick is absolute against `game.tick`.
+
+## Hive promotion (multi-hive expansion)
+
+- New recipe `hm-promote-node` produces an `hm-promote-node` marker item. Recipe is unlocked when the first hive finishes construction (auto-research alongside `hm-hive-spawners`). Pollution cost = `shared.promotion.cost` (initial 1000), charged from the network on craft (the recipe ingredient list reads `hm-pollution × cost`).
+- The marker item is consumed via `on_player_used_capsule`-style handling (or the existing item-on-target pattern used by vent mode markers). When the player applies it on a `hm-hive-node` they own (in their network), the script:
+  - Validates: target entity is an `hm-hive-node`, on the player's network (resolved via `Network.resolve_at`), not currently in a pending construction.
+  - Records the target's position, network membership, and storage record ties (nodes have no storage of their own — promotion gives the new hive a fresh storage chest).
+  - Destroys the node, creates an `hm-hive` at the same position, runs the standard chest-attach + storage-record path. Skips the 30-second construction; promoted hives are live immediately. (The 30s timer exists to make the anchor decision deliberate; a promotion is already deliberate by virtue of the pollution cost + targeting action.)
+  - Marks the new hive's storage record with `is_promoted = true`. The flag distinguishes promoted hives from the anchor for future code paths (e.g. if demotion is added later) but currently has no behavioural effect — both anchor and promoted hives are non-minable through the director permission group, and storage-merge / collapse semantics treat them identically.
+- Promotion is one-way. There is no demote-back-to-node action in the current spec. If the user wants demotion later it can be added as a separate marker recipe; the `is_promoted` flag is already in place to support it.
+- Promoted hives **do not** count toward the evolution gate. The gate counts only `hm-hive-node` entities. Promoting a node removes one from the count and replaces it with a hive (which contributes its 100×100 recruit box to spawner_count math but does not occupy a node slot).
+- Storage merge on hive death: when a hive dies and another hive on the same network survives, the dead hive's chest contents are transferred to a surviving hive's chest before destruction (existing `release_hive_contents` is replaced by a "merge into surviving network member" path). The network only collapses (orphans destroyed, creatures disgorged) when the **last** hive dies. This makes promoted hives genuine redundancy — the network's loss condition is `forall(hives_in_network).destroyed`, not `anchor.destroyed`.
+
+## Evolution-gated node count
+
+- New tunable `shared.network.evolution_step` (default `0.05`). The Nth node-equivalent placement in a network requires `enemy_force.evolution_factor >= (N - 1) * evolution_step`.
+- The count is **only** the number of `hm-hive-node` entities in the network. Hives (anchor and promoted) do not count. Promoting a node converts that node into a hive, removing one from the count.
+- Enforcement lives in `Build.on_built` for both `hm-hive-node` placements and the `hm-promote-node` marker handler. When the gate fails:
+  - Refund the placement (cancel and return the item to the player's cursor / main inventory).
+  - Print `{"message.hm-node-evolution-gated", required_evolution, current_evolution, n}` to the placing player. Existing chat-error helpers in build.lua handle this.
+- The cap reads the *post-placement* count (i.e. placing the 4th node requires the threshold for N=4), so the threshold for the 1st is 0 (always passes) and the maximum reachable count is `floor(1 + max_evolution / evolution_step) = 21` at evolution 1.0 with the default step.
+- Existing nodes loaded from saves under the old rules: not retroactively destroyed. Only new placements are checked.
+- The check is per-network, not per-surface or global — separate networks (e.g. an anchor + a far promoted hive that's no longer node-connected back to the anchor) each have their own count. (In practice the anchor permanence + reach rules keep the network connected, so this distinction rarely matters.)
 - A "recruiter" is any hive or hive node. Recruit radius is `shared.ranges.hive * reach_factor` for hives and `shared.ranges.hive_node * reach_factor` for nodes, where `reach_factor = 1 + completed_attraction_reach_levels * shared.attraction_reach_step`.
 
 ### Token bucket
