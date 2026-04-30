@@ -21,6 +21,7 @@ local shared    = require("shared")
 local State     = require("script.state")
 local Force     = require("script.force")
 local Hive      = require("script.hive")
+local Network   = require("script.network")
 
 local M = {}
 
@@ -128,7 +129,6 @@ function M.closest_non_full_for_unit(unit, network)
       -- Only consider vents whose placer's hive resolves into THIS network.
       local hive = placer_hive(record.placer_player_index)
       if hive and hive.valid and hive.surface == unit.surface then
-        local Network = require("script.network")
         local placer_net = Network.resolve_at(hive.surface, hive.position)
         if placer_net and placer_net.key == network.key then
           local size = attack_group_size_for(record)

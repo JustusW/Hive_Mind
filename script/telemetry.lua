@@ -10,6 +10,9 @@
 -- Both lines are gated on the existing Debug enable concept (today: always on
 -- for the active dev profile). Wrap behind a startup setting before shipping.
 
+local shared = require("shared")
+local State  = require("script.state")
+
 local M = {}
 
 local timings = {}
@@ -63,7 +66,6 @@ end
 -- the current bucket state directly from `state.recruit_buckets` so the line
 -- always reflects ground truth at flush time.
 function M.flush_recruit(tick)
-  local State = require("script.state")
   local s = State.get()
   local buckets = s.recruit_buckets or {}
 
@@ -78,7 +80,7 @@ function M.flush_recruit(tick)
     local b = buckets[k]
     tokens[#tokens + 1]   = b.tokens or 0
     spawners[#spawners + 1] = b.spawner_count or 0
-    Rs[#Rs + 1] = (b.spawner_count or 0) * (require("shared").recruit.per_spawner_per_second)
+    Rs[#Rs + 1] = (b.spawner_count or 0) * shared.recruit.per_spawner_per_second
   end
 
   local line = string.format(

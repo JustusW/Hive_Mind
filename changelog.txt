@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.2
+Date: 2026-04-30
+  Bugfixes:
+    - Fixed crash on save-load: "Require can't be used outside of control.lua parsing." Four deferred require() calls inside event handler functions (creatures.lua resolve_destination, vent.lua closest_non_full_for_unit, death.lua collapse_orphans, telemetry.lua flush_recruit) hoisted to the top of their modules. Factorio disallows require() at runtime; only data-load and control-script-parsing phases may call it.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.1
 Date: 2026-04-30
   Bugfixes:

@@ -11,6 +11,7 @@ local Force     = require("script.force")
 local Hive      = require("script.hive")
 local Network   = require("script.network")
 local Telemetry = require("script.telemetry")
+local Vent      = require("script.vent")
 
 local M = {}
 
@@ -330,7 +331,6 @@ local function resolve_destination(unit, default_target, ctx, network)
   if ctx.pheromone_player then
     return {position = ctx.pheromone_player.position}
   end
-  local Vent = require("script.vent")
   local vent = Vent.closest_non_full_for_unit(unit, network)
   if vent then return {entity = vent} end
   return default_target

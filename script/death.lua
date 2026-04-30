@@ -8,6 +8,7 @@ local State   = require("script.state")
 local Force   = require("script.force")
 local Hive    = require("script.hive")
 local Network = require("script.network")
+local Vent    = require("script.vent")
 
 local M = {}
 
@@ -127,7 +128,6 @@ local function collapse_orphans(dead_hive)
   for unit_number, record in pairs(s.pheromone_vents) do
     local vent = record.entity
     if vent and vent.valid and vent.surface == surface then
-      local Vent = require("script.vent")
       local placer_hive = Vent.placer_hive(record.placer_player_index)
       local kept = placer_hive and placer_hive.valid
                    and placer_hive ~= dead_hive
