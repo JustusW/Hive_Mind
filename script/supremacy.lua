@@ -114,30 +114,29 @@ local function rebuild_cache(member, range, hive_force, now)
   local creep_name = shared.creep_tile
   local added = 0
 
+  -- Cache as a sequence (1-indexed array) rather than keyed by unit_number.
+  -- Trees and several other entity types return nil unit_number on the
+  -- running engine, so unit_number-keyed lookups dropped every candidate.
   for _, entity in ipairs(found) do
     if entity.valid and not SKIP_TYPE[entity.type] then
-      if not entity.unit_number then
-        Telemetry.bump_supremacy("no_unit_number")
+      local pos  = entity.position
+      local tile = surface.get_tile(pos.x, pos.y)
+      if tile and tile.valid and tile.name == creep_name then
+        local is_tree = entity.type == "tree"
+        local lifetime = is_tree and shared.supremacy.tree_lifetime
+                                  or shared.supremacy.building_lifetime
+        local max_hp = (entity.prototype and entity.prototype.max_health)
+                       or entity.health or 50
+        rec.entries[#rec.entries + 1] = {
+          entity           = entity,
+          lifetime_seconds = lifetime,
+          is_tree          = is_tree,
+          pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
+          dmg_per_tick     = damage_per_tick(max_hp, lifetime)
+        }
+        added = added + 1
       else
-        local pos  = entity.position
-        local tile = surface.get_tile(pos.x, pos.y)
-        if tile and tile.valid and tile.name == creep_name then
-          local is_tree = entity.type == "tree"
-          local lifetime = is_tree and shared.supremacy.tree_lifetime
-                                    or shared.supremacy.building_lifetime
-          local max_hp = (entity.prototype and entity.prototype.max_health)
-                         or entity.health or 50
-          rec.entries[entity.unit_number] = {
-            entity           = entity,
-            lifetime_seconds = lifetime,
-            is_tree          = is_tree,
-            pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
-            dmg_per_tick     = damage_per_tick(max_hp, lifetime)
-          }
-          added = added + 1
-        else
-          Telemetry.bump_supremacy("on_creep_skip")
-        end
+        Telemetry.bump_supremacy("on_creep_skip")
       end
     end
   end
@@ -147,10 +146,12 @@ end
 
 local function damage_cache(rec, hive_force)
   if not rec or not rec.entries then return end
-  for entity_id, e in pairs(rec.entries) do
-    local entity = e.entity
+  -- Walk the sequence backwards so we can safely table.remove on kill.
+  for i = #rec.entries, 1, -1 do
+    local e = rec.entries[i]
+    local entity = e and e.entity
     if not (entity and entity.valid) then
-      rec.entries[entity_id] = nil
+      table.remove(rec.entries, i)
     else
       local pre_pos = {x = entity.position.x, y = entity.position.y}
       local surface = entity.surface
@@ -162,7 +163,7 @@ local function damage_cache(rec, hive_force)
         if e.is_tree and e.pollution_burst > 0 and surface and surface.valid then
           surface.pollute(pre_pos, e.pollution_burst)
         end
-        rec.entries[entity_id] = nil
+        table.remove(rec.entries, i)
       end
     end
   end
@@ -214,9 +215,8 @@ function M.tick()
       rebuild_cache(m.entity, m.range, hive_force, now)
     end
     damage_cache(rec, hive_force)
-    -- Snapshot cache size for telemetry.
     if rec.entries then
-      for _ in pairs(rec.entries) do total_cache = total_cache + 1 end
+      total_cache = total_cache + #rec.entries
     end
   end
   Telemetry.set_supremacy("cache_size", total_cache)

@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.4
+Date: 2026-04-30
+  Bugfixes:
+    - Fixed Hive Supremacy doing zero damage. The candidate cache was keyed by entity.unit_number; on the running engine, every entity returned by find_entities_filtered{force={player,neutral}} (trees, rocks, decoratives) had nil unit_number, so the cache was empty every cycle. Cache is now an array keyed by index.
+    - Removed the attack-group bypass pcall spam. Both commandable.unit_group and commandable.group throw "doesn't contain key" on every call (verified via 0.9.3 telemetry: ag_err >800/sec, ag_ug + ag_g = 0). Until a working property name is found, the bypass is a no-op — every biter routes through the trickle. Saves the pcall cost on every recruited unit.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.3
 Date: 2026-04-30
   Tunables:

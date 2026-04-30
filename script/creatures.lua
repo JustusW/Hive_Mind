@@ -263,32 +263,13 @@ end
 -- driven). These bypass the trickle bucket — recruiting them feels
 -- proportional to the player's pollution emission.
 --
--- 2.0 API: a unit's group reference is reachable via the unit's commandable,
--- but the property name varies between Factorio releases. Try the known
--- spellings under pcall so a missing property doesn't take down on_tick.
--- Probe counters (ag_*) record which spelling worked so we can confirm the
--- bypass is actually firing on this engine build.
+-- Earlier 0.9.x tried commandable.unit_group / commandable.group, both of
+-- which throw "doesn't contain key" on the running engine for every unit
+-- (verified via 0.9.3 telemetry: ag_err > 800/sec, ag_ug + ag_g = 0). Until
+-- we find a working property name in this engine version, the bypass is a
+-- no-op — every biter routes through the trickle.
 local function is_attack_group_member(unit)
-  local c = unit.commandable
-  if not c then
-    Telemetry.bump_probe("ag_miss")
-    return false
-  end
-  local ok1, g1 = pcall(function() return c.unit_group end)
-  if ok1 and g1 ~= nil and g1.valid then
-    Telemetry.bump_probe("ag_unit_group_hit")
-    return true
-  end
-  local ok2, g2 = pcall(function() return c.group end)
-  if ok2 and g2 ~= nil and g2.valid then
-    Telemetry.bump_probe("ag_group_hit")
-    return true
-  end
-  if not ok1 and not ok2 then
-    Telemetry.bump_probe("ag_pcall_err")
-  else
-    Telemetry.bump_probe("ag_miss")
-  end
+  Telemetry.bump_probe("ag_miss")
   return false
 end
 
