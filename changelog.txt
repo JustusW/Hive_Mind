@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.1
+Date: 2026-04-30
+  Bugfixes:
+    - Fixed crash on save-load: "LuaCommandable doesn't contain key group". The attack-group bypass in recruit_around used the wrong property name; in Factorio 2.0 a unit's group is reachable via commandable.unit_group, not commandable.group. Defensive pcall fallback in case future engine builds rename it again.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.0
 Date: 2026-04-30
   Major:

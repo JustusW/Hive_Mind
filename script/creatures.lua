@@ -257,11 +257,18 @@ end
 -- True if `unit` is currently part of an engine attack group (pollution-
 -- driven). These bypass the trickle bucket — recruiting them feels
 -- proportional to the player's pollution emission.
+--
+-- 2.0 API: a unit's group reference is reachable via the unit's commandable,
+-- but the property name varies between Factorio releases. Try the known
+-- spellings under pcall so a missing property doesn't take down on_tick.
 local function is_attack_group_member(unit)
   local c = unit.commandable
   if not c then return false end
-  local g = c.group
-  return g ~= nil and g.valid
+  local ok, g = pcall(function() return c.unit_group end)
+  if not ok or g == nil then
+    ok, g = pcall(function() return c.group end)
+  end
+  return ok and g ~= nil and g.valid
 end
 
 -- Resolve and refresh the recruit bucket for the network containing
