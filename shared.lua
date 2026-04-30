@@ -207,7 +207,11 @@ shared.supremacy =
   -- as a fallback when the tree prototype lacks emissions / pollution data.
   tree_pollution_default = 50,
   -- Tech research cost (Pollution Science Packs).
-  research_packs        = 200
+  research_packs        = 200,
+  -- Candidate cache rebuild cadence (ticks per hive). Damage tick still runs
+  -- every shared.intervals.supremacy ticks, but the candidate find is amortised
+  -- across this much wider window — most ticks are pure cache walk + damage.
+  candidate_scan        = 600
 }
 
 shared.creep_tile = "hm-creep"

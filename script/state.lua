@@ -9,6 +9,7 @@
 --   pollution_generators [unit_number]               = entity
 --   hive_roles           [entity_name][role]         = true
 --   scan_cursor          number (rotating index for the unified scan, 0.9.0)
+--   supremacy_candidates [member_unit_number] = { last_scan_tick, entries[entity_unit_number] = {...} }
 --
 -- All state lives under storage.hive_reboot. `storage` is the Factorio 2.0
 -- name; `global` is kept as a fallback for older runtimes.
@@ -40,6 +41,7 @@ function M.get()
   if not state.hive_nodes            then state.hive_nodes            = {} end
   if not state.hive_storage          then state.hive_storage          = {} end
   if state.scan_cursor               == nil then state.scan_cursor    = 0  end
+  if not state.supremacy_candidates  then state.supremacy_candidates  = {} end
   return state
 end
 
