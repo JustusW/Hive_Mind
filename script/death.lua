@@ -3,10 +3,11 @@
 -- When a hive dies its stored creature items respawn as living units on the
 -- hive force (R6 in the requirements doc). Pollution items are discarded.
 
-local shared = require("shared")
-local State  = require("script.state")
-local Force  = require("script.force")
-local Hive   = require("script.hive")
+local shared  = require("shared")
+local State   = require("script.state")
+local Force   = require("script.force")
+local Hive    = require("script.hive")
+local Network = require("script.network")
 
 local M = {}
 
@@ -88,6 +89,117 @@ function M.destroy_previous_player_hives(player_index, new_hive)
   end
 end
 
+-- Network collapse on last hive lost (0.9.0).
+--
+-- When a hive dies, walk every surviving hive (via Hive.all() — which queries
+-- the surface, so a just-placed-but-untracked replacement hive IS counted)
+-- and resolve its network. Any hive-side building on the same surface that
+-- doesn't end up in a surviving network is orphaned and destroyed.
+--
+-- Player-placed enemy-force entities (real biter-spawners, spitter-spawners,
+-- worm-turrets after the build-time swap) survive — they revert to ordinary
+-- vanilla nests/turrets.
+local function collapse_orphans(dead_hive)
+  if not (dead_hive and dead_hive.valid) then return end
+  local surface = dead_hive.surface
+  if not (surface and surface.valid) then return end
+  local hive_force = Force.get_hive()
+  if not hive_force then return end
+
+  -- Build the set of "surviving" member unit_numbers across all networks.
+  local survivors = {}
+  for _, hive in pairs(Hive.all()) do
+    if hive and hive.valid and hive ~= dead_hive and hive.surface == surface then
+      local network = Network.resolve_at(surface, hive.position)
+      if network then
+        for _, m in ipairs(network.members) do
+          if m.entity and m.entity.unit_number then
+            survivors[m.entity.unit_number] = true
+          end
+        end
+      end
+    end
+  end
+
+  -- Pheromone vents: resolved via placer hive. A vent whose placer's hive
+  -- isn't in any surviving network is orphaned.
+  local s = State.get()
+  for unit_number, record in pairs(s.pheromone_vents) do
+    local vent = record.entity
+    if vent and vent.valid and vent.surface == surface then
+      local Vent = require("script.vent")
+      local placer_hive = Vent.placer_hive(record.placer_player_index)
+      local kept = placer_hive and placer_hive.valid
+                   and placer_hive ~= dead_hive
+                   and survivors[placer_hive.unit_number]
+      if not kept then
+        vent.destroy({raise_destroy = true})
+        s.pheromone_vents[unit_number] = nil
+      end
+    end
+  end
+
+  -- Hive nodes, hive labs, hive storage chests — destroy orphans on hive force.
+  -- Storage chests release creatures first via release_hive_contents on their
+  -- owning hive (already handled per-hive on hive death), so what's left here
+  -- is orphaned chests whose hive is gone but whose creatures should still go
+  -- back to the world before the chest disappears.
+  local orphan_filter = surface.find_entities_filtered{
+    force = hive_force,
+    name  = {
+      shared.entities.hive_node,
+      shared.entities.hive_lab,
+      shared.entities.hive_storage
+    }
+  }
+  for _, e in pairs(orphan_filter) do
+    if e.valid and not survivors[e.unit_number] then
+      if e.name == shared.entities.hive_storage then
+        -- Release storage as live units — same loop as release_hive_contents
+        -- but the chest stands alone here.
+        local inv = e.get_inventory(defines.inventory.chest)
+        if inv then
+          for i = 1, #inv do
+            local stack = inv[i]
+            if stack and stack.valid_for_read then
+              local unit_name = shared.creature_unit_name(stack.name)
+              if unit_name and prototypes.entity[unit_name] then
+                for _ = 1, stack.count do
+                  local pos = surface.find_non_colliding_position(
+                    unit_name, e.position, 8, 0.5)
+                  if pos then
+                    surface.create_entity{
+                      name = unit_name, position = pos,
+                      force = hive_force, raise_built = false
+                    }
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+      e.destroy({raise_destroy = true})
+    end
+  end
+
+  -- Hive workers on the orphaned network die; surviving workers stay.
+  local workers = surface.find_entities_filtered{
+    force = hive_force,
+    name  = shared.entities.hive_worker
+  }
+  for _, w in pairs(workers) do
+    if w.valid and not survivors[w.unit_number] then
+      w.die()
+    end
+  end
+
+  -- Drop bucket entries whose anchor unit_number is no longer a survivor.
+  for key in pairs(s.recruit_buckets or {}) do
+    if not survivors[key] then s.recruit_buckets[key] = nil end
+  end
+end
+
 -- Single handler for on_entity_died, on_robot_mined_entity, script_raised_destroy.
 function M.on_removed(event)
   local entity = event.entity
@@ -96,6 +208,7 @@ function M.on_removed(event)
   if entity.name == shared.entities.hive then
     M.release_hive_contents(entity)
     Hive.untrack(entity)
+    collapse_orphans(entity)
   elseif entity.name == shared.entities.hive_node then
     Hive.untrack_node(entity)
   elseif entity.name == shared.entities.pheromone_vent then
