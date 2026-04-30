@@ -33,7 +33,10 @@ foreach ($candidate in Get-ChildItem -Path $ModsPath -Directory -Filter $stalePa
   if (-not $candidateTarget) { continue }
   $normalizedCandidateTarget = Resolve-NormalizedPath -Path $candidateTarget
   if ($normalizedCandidateTarget -eq $normalizedRepoRoot) {
-    Remove-Item -LiteralPath $candidate.FullName -Force
+    # -Recurse is required because PowerShell sees the junction as a non-
+    # empty directory and would otherwise prompt for confirmation; modern
+    # PowerShell deletes only the junction, not the target.
+    Remove-Item -LiteralPath $candidate.FullName -Force -Recurse
     Write-Host "Removed stale link $($candidate.FullName)"
   }
 }
@@ -66,7 +69,8 @@ if (Test-Path -LiteralPath $linkPath) {
     throw "Refusing to remove a non-link path: $linkPath"
   }
 
-  Remove-Item -LiteralPath $linkPath -Force
+  # -Recurse: same junction-confirm-prompt issue as in the stale-link cleanup.
+  Remove-Item -LiteralPath $linkPath -Force -Recurse
 }
 
 New-Item -ItemType Junction -Path $linkPath -Target $repoRoot | Out-Null
