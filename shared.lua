@@ -112,7 +112,7 @@ shared.intervals =
   creep     = 3,
   labels    = 30,   -- pollution-display refresh on each hive
   loadout   = 60,   -- inventory + quickbar watchdog for hive directors
-  supremacy = 6,    -- creep-damage tick at 10 Hz; smooth visible drain that overpowers vanilla regen
+  supremacy = 1,    -- creep-damage tick every frame (60 Hz). Anything slower lets vanilla tree regen partially restore between writes and the bar barely moves.
   scan      = 60    -- unified per-hive scan + telemetry flush cadence (0.9.0)
 }
 

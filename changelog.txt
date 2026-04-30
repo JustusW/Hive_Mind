@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.12
+Date: 2026-04-30
+  Bugfixes:
+    - Supremacy now runs every game tick (intervals.supremacy = 1, was 6). At 10 Hz vanilla tree regen partially restored between writes and the visible drain barely moved; at 60 Hz regen has only one tick to recover and the health bar drains smoothly along the target trajectory.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.11
 Date: 2026-04-30
   Bugfixes:
