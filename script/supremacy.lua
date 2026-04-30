@@ -116,7 +116,7 @@ end
 local function rebuild_cache(member, range, hive_force, now)
   local rec = cache_for_member(member.unit_number)
   rec.last_scan_tick = now
-  rec.entries = {}
+  rec.entries = rec.entries or {}
 
   local x, y = member.position.x, member.position.y
   local area = {{x - range, y - range}, {x + range, y + range}}
@@ -126,41 +126,55 @@ local function rebuild_cache(member, range, hive_force, now)
   Telemetry.bump_supremacy("rebuild_calls")
   Telemetry.bump_op("find")
 
+  -- Build a dedup set of entities already in the cache so we DON'T reset
+  -- their added_tick. Previously the entire entries table was wiped here
+  -- every 600 ticks; trees that should have died at 30s kept getting their
+  -- timer reset to 0 every 10s and never expired. Drop dead entries while
+  -- we walk so the cache also self-prunes.
+  local in_cache = {}
+  for i = #rec.entries, 1, -1 do
+    local e = rec.entries[i]
+    if e and e.entity and e.entity.valid then
+      in_cache[e.entity.unit_number or e.entity] = true
+    else
+      table.remove(rec.entries, i)
+    end
+  end
+
   local found = surface.find_entities_filtered{ area = area, force = SCAN_FORCES }
   if not found or #found == 0 then return end
 
   local creep_name = shared.creep_tile
   local added = 0
 
-  -- Cache as a sequence (1-indexed array) rather than keyed by unit_number.
-  -- Trees and several other entity types return nil unit_number on the
-  -- running engine, so unit_number-keyed lookups dropped every candidate.
   for _, entity in ipairs(found) do
     if entity.valid and not SKIP_TYPE[entity.type] then
-      local max_hp = safe_max_health(entity)
-      if max_hp then
-        local pos  = entity.position
-        local tile = surface.get_tile(pos.x, pos.y)
-        if tile and tile.valid and tile.name == creep_name then
-          local is_tree = entity.type == "tree"
-          local lifetime = is_tree and shared.supremacy.tree_lifetime
-                                    or shared.supremacy.building_lifetime
-          rec.entries[#rec.entries + 1] = {
-            entity           = entity,
-            is_tree          = is_tree,
-            max_hp           = max_hp,
-            pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
-            added_tick       = now,
-            expires_tick     = now + lifetime * 60
-          }
-          added = added + 1
+      local key = entity.unit_number or entity
+      if not in_cache[key] then
+        local max_hp = safe_max_health(entity)
+        if max_hp then
+          local pos  = entity.position
+          local tile = surface.get_tile(pos.x, pos.y)
+          if tile and tile.valid and tile.name == creep_name then
+            local is_tree = entity.type == "tree"
+            local lifetime = is_tree and shared.supremacy.tree_lifetime
+                                      or shared.supremacy.building_lifetime
+            rec.entries[#rec.entries + 1] = {
+              entity           = entity,
+              is_tree          = is_tree,
+              max_hp           = max_hp,
+              pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
+              added_tick       = now,
+              expires_tick     = now + lifetime * 60
+            }
+            in_cache[key] = true
+            added = added + 1
+          else
+            Telemetry.bump_supremacy("on_creep_skip")
+          end
         else
-          Telemetry.bump_supremacy("on_creep_skip")
+          Telemetry.bump_supremacy("no_unit_number")
         end
-      else
-        -- No reachable max_health → not damageable. Reuse the no_unit_number
-        -- counter as a "skipped: no health" tally for now.
-        Telemetry.bump_supremacy("no_unit_number")
       end
     end
   end

@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.10
+Date: 2026-04-30
+  Bugfixes:
+    - Fixed Hive Supremacy still doing nothing. The 600-tick candidate-cache rebuild was wiping the entries table and re-adding every entity with a fresh added_tick — so a tree that had been on creep for 9.99 seconds got its timer reset to 0 every 10 seconds and could never reach the 30-second lifetime. The rebuild now preserves existing entries' added_tick and only adds entities that aren't already cached. Dead entries are pruned during the walk.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.9
 Date: 2026-04-30
   Bugfixes:
