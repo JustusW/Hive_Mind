@@ -19,7 +19,7 @@ Applied at the start and end of every prompt.
 - The runner auto-executes anything dropped in that inbox. There is no y/N prompt on the host side.
 - I MUST call `AskUserQuestion` to get explicit approval BEFORE writing the inbox file. Show the literal command I'm about to send so the user can object first.
 - **Exception**: I may skip asking for calls to the ps1 scripts in tools/ subfolder, git add, git commit, git pull and git push and similar low impact commands.
-- After the runner has run, call `AskUserQuestion` again to confirm completion before reading `E:\code\claude shared\cowork-runner\.cowork\outbox\<id>.{log,exit}`. Don't poll or assume.
+- Drop the AskUserQuestion for confirmation after command. You may poll.
 - `.claude/settings.json` (per-project at `<project>/.claude/settings.json`, or global at `%USERPROFILE%\.claude\settings.json`) is the authoritative gate for inbox writes — it should `ask` on Write/Edit/Bash to `**/.cowork/inbox/**`. Defer to it; don't argue around it.
 
 ## Feature workflow

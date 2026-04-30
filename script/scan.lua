@@ -70,10 +70,16 @@ function M.tick(tick)
       Telemetry.measure("recruit", function()
         Creatures.recruit_at_member(m.entity, m.kind, ctx)
       end)
-      if m.kind == "hive" and not absorb_paused then
-        Telemetry.measure("absorb", function()
-          Creatures.absorb_at_hive(m.entity)
-        end)
+      if not absorb_paused then
+        if m.kind == "hive" then
+          Telemetry.measure("absorb", function()
+            Creatures.absorb_at_hive(m.entity)
+          end)
+        elseif m.kind == "hive_node" then
+          Telemetry.measure("absorb", function()
+            Creatures.absorb_at_node(m.entity, ctx)
+          end)
+        end
       end
     end
   end

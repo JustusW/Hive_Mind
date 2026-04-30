@@ -155,8 +155,48 @@ function M.absorb_at_hive(entity)
 end
 
 function M.tick_absorption()
-  if active_pheromone_player(State.get()) then return end
+  local s = State.get()
+  if active_pheromone_player(s) then return end
   for _, hive in pairs(Hive.all()) do M.absorb_at_hive(hive) end
+  -- Hive nodes also absorb (0.9.0) — they have no chest of their own, so
+  -- absorbed creatures route to the chest of the nearest hive.
+  local ctx = M.recruit_setup_tick()
+  if ctx then
+    for _, node_data in pairs(s.hive_nodes) do
+      local node = node_data.entity
+      if node and node.valid then M.absorb_at_node(node, ctx) end
+    end
+  end
+end
+
+-- Eat any hive-eligible unit standing on the node into the chest of the
+-- nearest hive on the surface. Mirrors absorb_at_hive but resolves the
+-- chest via the cached_nearest_hive lookup.
+function M.absorb_at_node(node, ctx)
+  if not (node and node.valid and ctx) then return end
+  local hive = M.cached_nearest_hive(node, ctx.hives)
+  if not (hive and hive.valid) then return end
+  local chest = Hive.get_chest(hive)
+  if not chest then return end
+  local inv = chest.get_inventory(defines.inventory.chest)
+  if not inv then return end
+
+  local hive_force  = ctx.hive_force
+  local enemy_force = ctx.enemy_force
+  local units = node.surface.find_entities_filtered{
+    position = node.position, radius = 6, type = "unit"
+  }
+  for _, unit in pairs(units) do
+    if unit.valid
+       and (unit.force == enemy_force or unit.force == hive_force)
+       and M.is_for_role(unit, shared.creature_roles.store) then
+      local item_name = shared.creature_item_name(unit.name)
+      if prototypes.item[item_name] then
+        unit.destroy({raise_destroy = true})
+        inv.insert{name = item_name, count = 1}
+      end
+    end
+  end
 end
 
 -- ── Recruitment ──────────────────────────────────────────────────────────────
@@ -190,6 +230,26 @@ local function nearest_hive_on_surface(entity, hives)
     end
   end
   return best
+end
+
+-- Cached lookup of nearest_hive_on_surface keyed off the node's storage
+-- record. The cache is invalidated lazily (next access) when the cached
+-- hive becomes invalid, moves surfaces, or the node has no record yet.
+-- Drops the per-tick O(N×M) cost for networks with many nodes.
+function M.cached_nearest_hive(node, hives)
+  if not (node and node.valid) then return nil end
+  local s = State.get()
+  local node_data = s.hive_nodes[node.unit_number]
+  if not node_data then
+    return nearest_hive_on_surface(node, hives)
+  end
+  local cached = node_data.cached_nearest_hive
+  if cached and cached.valid and cached.surface == node.surface then
+    return cached
+  end
+  local h = nearest_hive_on_surface(node, hives)
+  node_data.cached_nearest_hive = h
+  return h
 end
 
 -- Recruit (and reassign) any eligible units inside `radius` of `recruiter`,
@@ -258,8 +318,14 @@ function M.recruit_at_member(entity, kind, ctx)
     if ctx.pheromone_player then
       target = {position = ctx.pheromone_player.position}
     else
-      local hive = nearest_hive_on_surface(entity, ctx.hives)
-      if hive then target = {entity = hive} end
+      local hive = M.cached_nearest_hive(entity, ctx.hives)
+      if hive then
+        -- Redirect to nearest hive — the node itself becomes the
+        -- absorption point in step 3a, but pathing target stays the
+        -- nearest hive so disgorged units have somewhere to go when
+        -- pheromones come back online.
+        target = {entity = entity}
+      end
     end
     if target then
       local radius = shared.ranges.hive_node * ctx.factor

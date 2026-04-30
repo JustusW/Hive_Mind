@@ -21,6 +21,26 @@ local State   = require("script.state")
 local Force   = require("script.force")
 local Hive    = require("script.hive")
 
+-- Spawn members for worker dispatch: hives plus hive nodes. Workers spawn
+-- at whichever member is closest to the ghost — nodes are denser than
+-- hives, so most builds start closer.
+local function spawn_members()
+  local list = {}
+  for _, hive in pairs(Hive.all()) do
+    if hive and hive.valid then
+      list[#list + 1] = hive
+    end
+  end
+  local s = State.get()
+  for _, node_data in pairs(s.hive_nodes) do
+    local node = node_data and node_data.entity
+    if node and node.valid then
+      list[#list + 1] = node
+    end
+  end
+  return list
+end
+
 local M = {}
 
 local function jobs()
@@ -33,19 +53,20 @@ local function dist2(a, b)
   return dx * dx + dy * dy
 end
 
--- Pick the nearest hive on `ghost`'s surface that still has worker capacity
--- (number of in-flight workers attached to this hive < the per-hive cap).
-local function pick_hive(ghost, hives, in_flight_per_hive)
+-- Pick the nearest spawn member (hive or hive node) on `ghost`'s surface
+-- that still has worker capacity (number of in-flight workers attached to
+-- this member < the per-member cap).
+local function pick_spawn_member(ghost, members, in_flight_per_member)
   local cap = shared.hive_workers_per_hive
   local best, best_d
-  for _, hive in pairs(hives) do
-    if hive.valid and hive.surface == ghost.surface then
-      local count = in_flight_per_hive[hive.unit_number] or 0
+  for _, member in pairs(members) do
+    if member.valid and member.surface == ghost.surface then
+      local count = in_flight_per_member[member.unit_number] or 0
       if count < cap then
-        local d = dist2(hive.position, ghost.position)
+        local d = dist2(member.position, ghost.position)
         if not best_d or d < best_d then
           best_d = d
-          best   = hive
+          best   = member
         end
       end
     end
@@ -53,11 +74,11 @@ local function pick_hive(ghost, hives, in_flight_per_hive)
   return best
 end
 
-local function spawn_worker_at(hive, ghost)
-  local surface = hive.surface
+local function spawn_worker_at(member, ghost)
+  local surface = member.surface
   local pos = surface.find_non_colliding_position(
-    shared.entities.hive_worker, hive.position, 6, 0.25)
-  if not pos then pos = hive.position end
+    shared.entities.hive_worker, member.position, 6, 0.25)
+  if not pos then pos = member.position end
   local worker = surface.create_entity{
     name        = shared.entities.hive_worker,
     position    = pos,
@@ -118,12 +139,12 @@ function M.queue(ghost, player_index)
   }
 end
 
--- Public: count outstanding workers per hive (used by tick to enforce caps).
+-- Public: count outstanding workers per spawn member (hive or hive node).
 local function in_flight_counts(q)
   local counts = {}
   for _, job in pairs(q) do
-    if job.worker and job.worker.valid and job._hive_id then
-      counts[job._hive_id] = (counts[job._hive_id] or 0) + 1
+    if job.worker and job.worker.valid and job._spawn_id then
+      counts[job._spawn_id] = (counts[job._spawn_id] or 0) + 1
     end
   end
   return counts
@@ -131,10 +152,11 @@ end
 
 function M.tick()
   local q     = jobs()
+  -- Lazy-tick precheck: skip the whole pass when there's nothing to do.
   if not next(q) then return end
-  local now   = game.tick
-  local hives = Hive.all()
-  local counts = in_flight_counts(q)
+  local now     = game.tick
+  local members = spawn_members()  -- hives + hive_nodes
+  local counts  = in_flight_counts(q)
 
   for ghost_id, job in pairs(q) do
     -- Ghost gone (e.g., engine canceled it) — drop the job, cancel worker.
@@ -150,12 +172,12 @@ function M.tick()
         q[ghost_id] = nil
       elseif job.deadline and now > job.deadline then
         dispose_worker(job.worker)
-        if job._hive_id then
-          counts[job._hive_id] = (counts[job._hive_id] or 1) - 1
+        if job._spawn_id then
+          counts[job._spawn_id] = (counts[job._spawn_id] or 1) - 1
         end
         job.worker   = nil
         job.deadline = nil
-        job._hive_id = nil
+        job._spawn_id = nil
         job.attempts = (job.attempts or 0) + 1
         if job.attempts >= shared.workers_max_attempts then
           if job.ghost and job.ghost.valid then job.ghost.destroy() end
@@ -163,15 +185,16 @@ function M.tick()
         end
       end
     else
-      -- Unassigned: try to dispatch a worker from the closest in-range hive.
-      local hive = pick_hive(job.ghost, hives, counts)
-      if hive then
-        local worker = spawn_worker_at(hive, job.ghost)
+      -- Unassigned: dispatch a worker from the closest in-range member
+      -- (hive or hive node, whichever is nearer to the ghost).
+      local member = pick_spawn_member(job.ghost, members, counts)
+      if member then
+        local worker = spawn_worker_at(member, job.ghost)
         if worker then
           job.worker   = worker
           job.deadline = now + shared.workers_timeout_ticks
-          job._hive_id = hive.unit_number
-          counts[hive.unit_number] = (counts[hive.unit_number] or 0) + 1
+          job._spawn_id = member.unit_number
+          counts[member.unit_number] = (counts[member.unit_number] or 0) + 1
         end
       end
     end
@@ -187,7 +210,7 @@ function M.on_worker_died(entity)
     if job.worker == entity then
       job.worker   = nil
       job.deadline = nil
-      job._hive_id = nil
+      job._spawn_id = nil
       break
     end
   end
