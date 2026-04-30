@@ -1,9 +1,10 @@
 ---------------------------------------------------------------------------------------------------
-Version: 0.7.1.0
+Version: 0.7.1
 Date: 2026-04-30
   Changes:
     - Mod folder renamed to Hive_Mind_Reworked to match the title; locale and asset paths follow.
     - Bugfix pass on the worker dispatcher and supporting modules.
+    - Embedded gleba-spawner / wriggler / biolab graphics + sounds into the mod so the egg-raft hive and wriggler workers render without Space Age installed.
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.0
 Date: 2026-04-30
