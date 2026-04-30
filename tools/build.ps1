@@ -7,8 +7,9 @@
 # result to <repo>/dist/<name>_<version>.zip.
 #
 # Excluded from the package: dev tooling (tools/, .vscode/, .factorio-dev/,
-# .git/, .cowork/, dist/, tmp/), internal design docs (HIVE_DESIGN.md,
-# DEVELOPMENT.md, prompt_preferences.md), and the legacy reference port.
+# .git/, .cowork/, dist/, tmp/), internal design docs (design.md,
+# DEVELOPMENT.md, prompt_preferences.md, working_requirements.md), and the
+# legacy reference port.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File .\tools\build.ps1
@@ -126,7 +127,7 @@ $includes = @(
   "shared.lua",
   "changelog.txt",
   "readme.md",
-  "HIVE_REBOOT_REQUIREMENTS.md",
+  "requirements.md",
   "data",
   "script",
   "locale"

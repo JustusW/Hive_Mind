@@ -56,6 +56,6 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for helper scripts and the isolated dev pro
 
 ## Spec
 
-- [HIVE_REBOOT_REQUIREMENTS.md](HIVE_REBOOT_REQUIREMENTS.md) — player-facing intent.
-- [HIVE_DESIGN.md](HIVE_DESIGN.md) — implementation choices and engine details.
+- [requirements.md](requirements.md) — player-facing intent.
+- [design.md](design.md) — implementation choices and engine details.
 

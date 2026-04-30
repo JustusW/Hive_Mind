@@ -5,7 +5,7 @@ local subgroup_other = "intermediate-product"
 
 -- All hive-tier recipes are zero-ingredient cursor stamps. The pollution cost
 -- is charged from the hive network at placement time (script/main.lua →
--- consume_network_pollution), not from the player. See HIVE_DESIGN.md §
+-- consume_network_pollution), not from the player. See design.md §
 -- "Cost charging".
 
 local recipes =
@@ -68,7 +68,7 @@ local recipes =
     results = {{type = "item", name = shared.items.hive_spitter_spawner, amount = 1}}
   },
   -- Debug pollution generator: free, always enabled. Gate behind a startup
-  -- setting before shipping (see HIVE_DESIGN.md "Debug fixtures").
+  -- setting before shipping (see design.md "Debug fixtures").
   {
     type = "recipe",
     name = shared.recipes.pollution_generator,

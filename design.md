@@ -1,6 +1,6 @@
 # Hive Mind Reworked — Design Notes
 
-Implementation choices and engine-level details that the requirements doc deliberately leaves out. Read [HIVE_REBOOT_REQUIREMENTS.md](HIVE_REBOOT_REQUIREMENTS.md) first.
+Implementation choices and engine-level details that the requirements doc deliberately leaves out. Read [requirements.md](requirements.md) first.
 
 ## Forces
 

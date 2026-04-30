@@ -87,4 +87,4 @@ Once **Hive Supremacy** is researched, anything on creep that isn't part of the 
 
 ---
 
-Implementation choices, internal entity names, and engine-level details live in [HIVE_DESIGN.md](HIVE_DESIGN.md).
+Implementation choices, internal entity names, and engine-level details live in [design.md](design.md).
