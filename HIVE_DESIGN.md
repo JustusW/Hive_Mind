@@ -33,9 +33,9 @@ Implementation choices and engine-level details that the requirements doc delibe
 
 | Player item | Built entity | Notes |
 |---|---|---|
-| `hm-hive` | `hm-hive` | Roboport prototype, 0 robot / 0 material slots (kept for the build-zone overlay and dashed connection lines, not for bots). Storage lives in an adjacent passive-provider chest; clicking the hive routes to that chest's GUI. Visually: scaled-up gleba-spawner ("egg raft") tinted orange-red, falls back to tinted biter-spawner without Space Age. Build / visibility: 100×100 box. |
-| `hm-hive-node` | `hm-hive-node` | Roboport prototype, 0 robot / 0 material slots. Build / visibility: 50×50 box. |
-| `hm-hive-lab` | `hm-hive-lab` | Lab prototype. Only accepts `hm-pollution-science-pack`. |
+| `hm-hive` | `hm-hive` | Roboport prototype, 0 robot / 0 material slots (kept for the build-zone overlay and dashed connection lines, not for bots). Storage lives in an adjacent passive-provider chest; clicking the hive routes to that chest's GUI. Visually: scaled-up vendored gleba-spawner ("egg raft") with its original Space Age coloration. Build / visibility: 100×100 box. |
+| `hm-hive-node` | `hm-hive-node` | Roboport prototype, 0 robot / 0 material slots. Visual: vendored small gleba-spawner at original scale. Build / visibility: 50×50 box. |
+| `hm-hive-lab` | `hm-hive-lab` | Lab prototype. Visual: vendored Biolab at original scale. Only accepts `hm-pollution-science-pack`. |
 | `hm-biter-spawner` | vanilla `biter-spawner` | Player places a tinted proxy ghost (`hm-spawner-ghost`); `on_built_entity` swaps it for a real `biter-spawner` on the enemy force. |
 | `hm-spitter-spawner` | vanilla `spitter-spawner` | Same proxy mechanic via `hm-spitter-spawner-ghost`. |
 | `hm-{tier}-worm` | vanilla `{tier}-worm-turret` | Same proxy mechanic, one ghost per tier. |
@@ -43,19 +43,25 @@ Implementation choices and engine-level details that the requirements doc delibe
 
 ## Visual style
 
-Every hive-side entity is a coloured sprite swap. The hive itself uses the Space Age **gleba-spawner** ("egg raft") sprite, scaled up and tinted orange-red. Hive nodes, hive labs, storage chests, biter/spitter spawner proxies, and worm proxies all use the biter-spawner sprite tinted in their respective hues. Hive workers use the small-biter sprite. No roboport, lab, or chest sprites should appear.
+Every hive-side entity is a sprite swap. The hive itself uses a vendored copy of the Space Age **gleba-spawner** ("egg raft") sprite, scaled up but left in its original colors, so it looks the same whether or not Space Age is enabled. Hive nodes use the vendored small gleba-spawner at original scale and original colors. Hive labs use the vendored Biolab at original scale and original colors. Storage chests, biter/spitter spawner proxies, and worm proxies use the biter-spawner sprite tinted in their respective hues. Hive workers use vendored Space Age small-wiggler run graphics and sounds. No roboport, vanilla lab, or chest sprites should appear.
 
-When the gleba-spawner prototype isn't loaded (e.g., the dev profile runs with `space-age = false`), the hive falls back to a tinted biter-spawner sprite so the data stage still loads.
+The vendored helper only exposes `hm-*` prototypes and asset paths under `__Hive_Mind_Reworked__`; it does not register `gleba-spawner` or `small-wriggler-pentapod`, so enabling Space Age alongside the mod does not create duplicate prototype-name conflicts.
 
 Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive storage = orange-red, biter spawner proxy = orange-red, spitter spawner proxy = lime, worm proxies = purple shades by tier.
 
+Hive tracking is backed by runtime state but treats actual `hm-hive` and `hm-hive-node` entities on the hive force as authoritative recovery data. On load/config changes and before network-sensitive scans, the runtime reconciles state from the world: missing hives are linked back to a player bucket, missing nodes are restored to `hive_nodes`, invalid references are removed, and hive storage records are recreated without discarding valid chests. This keeps construction range, recruitment, creep growth, and one-hive replacement working after save/load.
+
+Crafting menu placement: pheromone toggle recipes live in the production tab via the `production-machine` subgroup. Every other hive recipe lives in the intermediate products tab via the `intermediate-product` subgroup.
+
+When a joined player carries `hm-pheromones`, recruitment switches to that player as the target. On the same recruitment tick, every hive storage chest disgorges all stored creature items back into live units on the hive force and commands them toward the pheromone carrier. Pollution items stay in storage. Absorption is paused while pheromones are active so the freshly released units are not immediately swallowed again.
+
 ## Hive workers
 
-The hive worker is a `unit` (biter clone, hive-tinted, hive-force) commanded by a script-side dispatcher. There is no roboport-driven build pipeline: the hive prototype keeps `robot_slots_count = 0` and does no native auto-building. Every ghost is fulfilled by a worker that walks from the nearest hive to the build site, calls `surface.create_entity{raise_built = true}` to materialise it, and dies with a corpse animation.
+The hive worker is a `unit` (real Space Age small wriggler when available, base-game unit fallback otherwise, hive-force) commanded by a script-side dispatcher. There is no roboport-driven build pipeline: the hive prototype keeps `robot_slots_count = 0` and does no native auto-building. Every ghost is fulfilled by a worker that walks from the nearest hive to the build site, calls `surface.create_entity{raise_built = true}` to materialise it, and is removed on arrival. If Space Age is loaded, the matching wiggler corpse is spawned; otherwise the worker simply vanishes rather than showing a biter corpse.
 
-- `hm-hive-worker` is a unit prototype based on `small-wriggler-pentapod` (the actual wiggler) when Space Age is loaded, falling back to `small-biter` otherwise. Visible, ground-bound, friendly with enemy/spectator/hivemind. Health is high but not invulnerable.
+- `hm-hive-worker` is based on `small-wriggler-pentapod` when Space Age is loaded, falling back to `small-biter` otherwise; vendored Space Age small-wiggler run graphics, icon, and sounds are applied in both cases. Visible, ground-bound, friendly with enemy/spectator/hivemind. Health is high but not invulnerable.
 - `Workers.queue(ghost)` enqueues a pending materialisation. `fulfill_ghost` calls this after passing the tech / obstruction / consume guards — the chest insert + bot pickup hand-off is gone.
-- `Workers.tick()` runs every `shared.intervals.workers` ticks. It validates each pending job (ghost still valid, worker still valid, target still in range), spawns a worker at the closest in-network hive when capacity allows, and checks each in-flight worker's distance to its target. Within `WORKERS_ARRIVAL_RADIUS` tiles of the ghost the worker calls `surface.create_entity` for the ghost's entity name (with `raise_built = true`), destroys the ghost, and dies via `Hive.spawn_worker_corpse`.
+- `Workers.tick()` runs every `shared.intervals.workers` ticks. It validates each pending job (ghost still valid, worker still valid, target still in range), spawns a worker at the closest in-network hive when capacity allows, and checks each in-flight worker's distance to its target. Within `WORKERS_ARRIVAL_RADIUS` tiles of the ghost the worker calls `surface.create_entity` for the ghost's entity name (with `raise_built = true`), destroys the ghost, and removes the worker via `Hive.spawn_worker_corpse`.
 - A worker that doesn't reach its target inside `WORKERS_TIMEOUT_TICKS` is abandoned (killed) and its job is requeued so a fresh worker can try.
 - Capacity per hive: `shared.hive_workers_per_hive`. State lives at `state.worker_jobs[ghost_unit_number] = {ghost, worker, hive, deadline}`.
 - Worker death (gameplay attack, hive destroyed, etc.) cleans up via the existing `on_entity_died` handler, which drops the job back on the queue.

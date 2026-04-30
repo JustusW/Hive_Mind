@@ -136,7 +136,8 @@ $includes = @(
 # (thumbnail.png) and graphics directories that might land later.
 $optional = @(
   "thumbnail.png",
-  "graphics"
+  "graphics",
+  "sound"
 )
 
 $staging    = Join-Path $env:TEMP ("hm-build-" + [guid]::NewGuid().ToString("N"))

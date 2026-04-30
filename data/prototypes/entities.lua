@@ -1,4 +1,5 @@
 local shared = require("shared")
+local space_age_assets = require("data.prototypes.space_age_assets")
 
 -- ── Sprite helpers ────────────────────────────────────────────────────────────
 
@@ -31,10 +32,6 @@ local spawner_proto  = data.raw["unit-spawner"]["biter-spawner"]
 local roboport_proto = data.raw["roboport"]["roboport"]
 local lab_proto      = data.raw["lab"]["lab"]
 local chest_proto    = data.raw["logistic-container"]["passive-provider-chest"]
-
--- Egg raft: gleba-spawner from Space Age. Falls back to biter-spawner so the
--- mod still loads in profiles where space-age isn't enabled.
-local egg_raft_proto = data.raw["unit-spawner"]["gleba-spawner"] or spawner_proto
 
 -- Return a deep-copied Animation from `proto`'s spawner-shaped graphics.
 -- Handles both 2.0 (graphics_set.animations) and the older (animations)
@@ -70,12 +67,12 @@ local function tinted_spawner_anim(tint)
   return anim
 end
 
--- Tinted, optionally rescaled animation for the hive (egg raft). Uses
--- gleba-spawner when available, otherwise biter-spawner.
-local function tinted_egg_raft_anim(tint, scale)
-  local anim = animation_from(egg_raft_proto)
+-- Optionally rescaled animation for the hive (egg raft). Uses vendored Space
+-- Age art in its original colors so the hive looks the same without a Space
+-- Age dependency.
+local function gleba_spawner_anim(scale)
+  local anim = space_age_assets.gleba_spawner_animation()
   if scale and scale ~= 1 then rescale_sprite(anim, scale) end
-  if tint then tint_sprite(anim, tint) end
   return anim
 end
 
@@ -98,11 +95,9 @@ end
 
 -- Colours.
 local col_hive = {r = 0.90, g = 0.35, b = 0.05, a = 1}
-local col_node = {r = 0.10, g = 0.75, b = 0.45, a = 1}
-local col_lab  = {r = 0.55, g = 0.10, b = 0.85, a = 1}
 
 -- ── Hive ─────────────────────────────────────────────────────────────────────
--- Roboport mechanics. Visual: scaled-up egg raft (gleba-spawner) tinted hive.
+-- Roboport mechanics. Visual: scaled-up egg raft (gleba-spawner).
 
 local hive = table.deepcopy(roboport_proto)
 hive.name                  = shared.entities.hive
@@ -121,11 +116,11 @@ hive.energy_source         = {type = "void"}
 hive.energy_usage          = "1W"
 hive.charging_energy       = "10MW"
 hive.recharge_minimum      = "1MJ"
-hive.icon                  = spawner_proto.icon
-hive.icon_size             = spawner_proto.icon_size
+hive.icon                  = space_age_assets.gleba_spawner_icon
+hive.icon_size             = space_age_assets.icon_size
 hive.icons                 = nil
--- Sprite swap: hide every roboport-shaped visual, then overlay a tinted,
--- scaled-up egg raft (gleba-spawner). 2× scale gives a sprite that visibly
+-- Sprite swap: hide every roboport-shaped visual, then overlay a scaled-up
+-- egg raft (gleba-spawner). 2× scale gives a sprite that visibly
 -- dominates the 4×4 roboport footprint without poking past the construction
 -- ring.
 hide_sprite(hive.base)
@@ -134,7 +129,7 @@ hide_sprite(hive.door_animation_up)
 hide_sprite(hive.door_animation_down)
 hide_sprite(hive.recharging_animation)
 hive.recharging_light      = nil
-hive.base_animation        = tinted_egg_raft_anim(col_hive, 2.0)
+hive.base_animation        = gleba_spawner_anim(2.0)
 
 -- ── Hive Node ─────────────────────────────────────────────────────────────────
 
@@ -152,8 +147,8 @@ hive_node.energy_source         = {type = "void"}
 hive_node.energy_usage          = "1W"
 hive_node.charging_energy       = "1MW"
 hive_node.recharge_minimum      = "1MJ"
-hive_node.icon                  = spawner_proto.icon
-hive_node.icon_size             = spawner_proto.icon_size
+hive_node.icon                  = space_age_assets.gleba_spawner_small_icon
+hive_node.icon_size             = space_age_assets.icon_size
 hive_node.icons                 = nil
 hide_sprite(hive_node.base)
 hide_sprite(hive_node.base_patch)
@@ -161,7 +156,7 @@ hide_sprite(hive_node.door_animation_up)
 hide_sprite(hive_node.door_animation_down)
 hide_sprite(hive_node.recharging_animation)
 hive_node.recharging_light      = nil
-hive_node.base_animation        = tinted_spawner_anim(col_node)
+hive_node.base_animation        = space_age_assets.gleba_spawner_small_animation()
 
 -- ── Hive Lab ──────────────────────────────────────────────────────────────────
 
@@ -174,11 +169,11 @@ hive_lab.inputs                = {shared.items.pollution_science_pack}
 hive_lab.energy_source         = {type = "void"}
 hive_lab.energy_usage          = "1W"
 hive_lab.researching_speed     = 1
-hive_lab.icon                  = spawner_proto.icon
-hive_lab.icon_size             = spawner_proto.icon_size
+hive_lab.icon                  = space_age_assets.biolab_icon
+hive_lab.icon_size             = space_age_assets.icon_size
 hive_lab.icons                 = nil
-hive_lab.on_animation          = tinted_spawner_anim(col_lab)
-hive_lab.off_animation         = tinted_spawner_anim(col_lab)
+hive_lab.on_animation          = space_age_assets.biolab_on_animation()
+hive_lab.off_animation         = space_age_assets.biolab_off_animation()
 hive_lab.entity_info_icon_shift = nil
 if hive_lab.working_visualisations then hive_lab.working_visualisations = nil end
 if hive_lab.light                  then hive_lab.light = nil end
@@ -189,10 +184,9 @@ if hive_lab.light                  then hive_lab.light = nil end
 -- logistic-bot AI — just a unit with go_to_location commands, so pathfinding
 -- and animation are handled by the engine.
 --
--- Base prototype is `small-wriggler-pentapod` (the actual Gleba wiggler) when
--- Space Age is loaded. Falls back to `small-biter` so the data stage still
--- loads in vanilla profiles. Either way, the entity name we register stays
--- `hm-hive-worker` so script lookups don't need to know which base was used.
+-- Behaviour comes from the real Space Age small wriggler when present, falling
+-- back to a base unit when Space Age is not loaded. Visuals/sounds are vendored
+-- so the worker still looks like a wriggler in base-only profiles.
 local worker_base = data.raw["unit"]["small-wriggler-pentapod"]
                  or data.raw["unit"]["small-biter"]
 
@@ -206,6 +200,7 @@ hive_worker.movement_speed          = (hive_worker.movement_speed or 0.05) * 1.5
 hive_worker.distraction_cooldown    = 0
 hive_worker.pollution_to_join_attack = nil
 hive_worker.spawning_time_modifier  = nil
+space_age_assets.apply_wriggler_unit(hive_worker)
 
 -- ── Hive Storage Chest (invisible) ────────────────────────────────────────────
 -- Functional passive-provider chest placed beside every hive. The visible hive

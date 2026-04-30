@@ -218,10 +218,8 @@ end
 -- Hive placed by player. Free; first-hive-ever flips the spawner tech and
 -- enables the gated recipes.
 local function on_hive_placed(entity, player_index)
-  if player_index then
-    Death.destroy_previous_player_hives(player_index, entity)
-    Hive.track(player_index, entity)
-  end
+  Death.destroy_previous_player_hives(player_index, entity)
+  Hive.track(player_index, entity)
   Hive.create_chest(entity)
   Hive.chart(entity, shared.ranges.hive)
 

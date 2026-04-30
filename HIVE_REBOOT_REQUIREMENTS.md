@@ -8,9 +8,10 @@ You play a hive mind, not an engineer. You direct biters instead of crafting cir
 2. After joining you become a director with no physical body — the only items you carry are the buildings the hive has unlocked. Those items are pinned to your quickbar and refilled on a watchdog tick.
 3. Place a **Hive**. This is your foothold; recruitment and the construction network are anchored here.
 4. The hive draws biters in. They walk in and get absorbed; a floating label above each hive shows the network's available pollution.
-5. Place buildings directly (the cursor refills after each placement) or ghost-place them. Either way the hive turns the placement into a ghost and dispatches a **hive worker** — a ground-bound biter-shaped unit — to walk from the nearest hive and materialise it on arrival. The hive is the one exception: it is built directly by the player because no workers exist before the first hive lands.
+5. Place buildings directly (the cursor refills after each placement) or ghost-place them. Either way the hive turns the placement into a ghost and dispatches a **hive worker** — a ground-bound wiggler-shaped unit — to walk from the nearest hive and materialise it on arrival. The hive is the one exception: it is built directly by the player because no workers exist before the first hive lands.
 6. Place **Hive Labs** to research. They consume creatures to make Pollution Science Packs.
 7. Research worm tiers, the infinite Attraction Reach, and other upgrades. Vanilla research is hidden — only the hive tree is visible.
+8. When **Pheromones** are active, hives disgorge stored creatures back into the world and send them toward the pheromone carrier instead of absorbing them.
 
 ## Rules
 
@@ -24,11 +25,11 @@ You play a hive mind, not an engineer. You direct biters instead of crafting cir
 
 ## Buildings
 
-- **Hive** — always available, free to place. Your foothold and recruitment anchor.
-- **Hive Node** — extends the network. Unlocks when the first Hive is placed.
+- **Hive** — always available, free to place. Your foothold and recruitment anchor, rendered as a Gleba egg raft even when Space Age is not loaded.
+- **Hive Node** — extends the network. Unlocks when the first Hive is placed. Rendered as a small Gleba egg raft.
 - **Biter Spawner** — produces biters. Unlocks when the first Hive is placed.
 - **Spitter Spawner** — produces spitters. Unlocks when the first Hive is placed.
-- **Hive Lab** — research. Unlocks when creep first spreads.
+- **Hive Lab** — research. Unlocks when creep first spreads. Rendered as a Biolab.
 - **Worm turrets** (small → behemoth) — defenses. Each tier unlocks via research.
 
 Each placeable item lists its pollution cost in its tooltip.
@@ -45,6 +46,7 @@ Each placeable item lists its pollution cost in its tooltip.
 - Units recruited from a hive walk to that hive. Units recruited from a node walk to the nearest hive on the same surface (nodes have no storage of their own).
 - Each Hive and Hive Node has a 100×100 / 50×50 construction zone where it builds. Connected zones extend the network.
 - Connected hives and nodes share one resource pool.
+- Loading a save must preserve or recover hive/node connections; existing hives and nodes in the world remain connected to the construction, recruitment, and storage network.
 - **Node placement exception**: a Hive Node can be placed as long as it would connect to the network — i.e., the new node's own 50×50 box would overlap an existing hive or node — even if the placement position itself sits just outside the current network's build zone. All other buildings still require the placement position to be inside the network's build zone.
 - A single purple **creep** tile fills the same box outward in Chebyshev rings. Biters move faster on creep.
 

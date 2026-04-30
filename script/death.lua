@@ -51,18 +51,39 @@ end
 -- One hive per player: when a player places a new hive, release and destroy
 -- the previous one(s).
 function M.destroy_previous_player_hives(player_index, new_hive)
+  if not (new_hive and new_hive.valid) then return end
   local s = State.get()
+  player_index = player_index or 0
+  local new_hive_id = new_hive.unit_number
   s.hives_by_player[player_index] = s.hives_by_player[player_index] or {}
   local bucket = s.hives_by_player[player_index]
+
+  local function destroy_hive(e)
+    if not (e and e.valid and e ~= new_hive) then return end
+    local id = e.unit_number
+    M.release_hive_contents(e)
+    if e.valid then
+      e.destroy({raise_destroy = true})
+    end
+    s.hive_storage[id] = nil
+    for _, other_bucket in pairs(s.hives_by_player) do
+      other_bucket[id] = nil
+    end
+  end
+
   for unit_number, hive_data in pairs(bucket) do
-    if unit_number ~= new_hive.unit_number then
-      local e = hive_data.entity
-      if e and e.valid then
-        M.release_hive_contents(e)
-        e.destroy({raise_destroy = true})
-      end
-      s.hive_storage[unit_number] = nil
-      bucket[unit_number] = nil
+    if unit_number ~= new_hive_id then
+      destroy_hive(hive_data.entity)
+    end
+  end
+
+  -- Older saves or missed build events can leave hives in the world without a
+  -- player bucket. Treat those as this player's stale hive when placing a new
+  -- one so the network recovers instead of reporting "no hive in range".
+  for _, hive in pairs(Hive.all()) do
+    local owner = Hive.owner_player_index(hive)
+    if owner == nil or owner == player_index then
+      destroy_hive(hive)
     end
   end
 end

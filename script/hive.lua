@@ -6,6 +6,7 @@
 
 local shared = require("shared")
 local State  = require("script.state")
+local Force  = require("script.force")
 
 local M = {}
 
@@ -66,9 +67,13 @@ end
 -- ── Tracking ──────────────────────────────────────────────────────────────────
 
 function M.track(player_index, entity)
+  if not (entity and entity.valid and entity.unit_number) then return end
+  player_index = player_index or 0
   local s = State.get()
   s.hives_by_player[player_index] = s.hives_by_player[player_index] or {}
   s.hives_by_player[player_index][entity.unit_number] = {entity = entity}
+  local record = M.get_storage(entity)
+  if record then record.owner_player_index = player_index end
 end
 
 function M.untrack(entity)
@@ -106,15 +111,43 @@ function M.get_primary(player_index)
   end
 end
 
+function M.owner_player_index(entity)
+  if not (entity and entity.valid and entity.unit_number) then return nil end
+  local s = State.get()
+  local record = s.hive_storage[entity.unit_number]
+  if record and record.owner_player_index then return record.owner_player_index end
+  for player_index, bucket in pairs(s.hives_by_player) do
+    if bucket[entity.unit_number] then return player_index end
+  end
+  return nil
+end
+
+local function add_hive(result, seen, entity)
+  if not (entity and entity.valid and entity.unit_number) then return end
+  if seen[entity.unit_number] then return end
+  seen[entity.unit_number] = true
+  result[#result + 1] = entity
+  M.get_storage(entity)
+end
+
 -- Every valid hive across all players.
 function M.all()
   local s = State.get()
   local result = {}
+  local seen = {}
   for _, bucket in pairs(s.hives_by_player) do
     for _, hive_data in pairs(bucket) do
-      if hive_data.entity and hive_data.entity.valid then
-        result[#result + 1] = hive_data.entity
-      end
+      add_hive(result, seen, hive_data.entity)
+    end
+  end
+  local hive_force = Force.get_hive()
+  if hive_force and game then
+    for _, surface in pairs(game.surfaces) do
+      local hives = surface.find_entities_filtered{
+        name = shared.entities.hive,
+        force = hive_force
+      }
+      for _, hive in pairs(hives) do add_hive(result, seen, hive) end
     end
   end
   return result
@@ -122,15 +155,12 @@ end
 
 -- ── Worker corpse ─────────────────────────────────────────────────────────────
 
--- Spawn a corpse at `entity` to fake a death animation. Picks the corpse
--- matching the worker's base prototype: wriggler corpse if Space Age is
--- loaded, biter corpse otherwise. Used when a hive worker delivers a build
--- and we silently destroy it (we can't use entity.die() because that would
--- re-enter on_entity_died with a death-effect cascade we don't want for a
--- completed-delivery teardown).
+-- Spawn a corpse at `entity` to fake a death animation when Space Age provides
+-- the matching wiggler corpse. Base-only profiles skip the corpse instead of
+-- showing a biter corpse for a wiggler-looking worker.
 function M.spawn_worker_corpse(entity)
   if not (entity and entity.valid) then return end
-  local candidates = {"small-wriggler-pentapod-corpse", "small-biter-corpse"}
+  local candidates = {"small-wriggler-pentapod-corpse"}
   for _, name in ipairs(candidates) do
     if prototypes.entity[name] then
       pcall(function()

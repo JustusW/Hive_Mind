@@ -1,5 +1,8 @@
 local shared = require("shared")
 
+local subgroup_pheromones = "production-machine"
+local subgroup_other = "intermediate-product"
+
 -- All hive-tier recipes are zero-ingredient cursor stamps. The pollution cost
 -- is charged from the hive network at placement time (script/main.lua →
 -- consume_network_pollution), not from the player. See HIVE_DESIGN.md §
@@ -12,6 +15,7 @@ local recipes =
     type = "recipe",
     name = shared.recipes.hive,
     localised_name = {"recipe-name." .. shared.recipes.hive},
+    subgroup = subgroup_other,
     enabled = false,
     energy_required = 0.5,
     ingredients = {},
@@ -22,6 +26,7 @@ local recipes =
     type = "recipe",
     name = shared.recipes.hive_node,
     localised_name = {"recipe-name." .. shared.recipes.hive_node},
+    subgroup = subgroup_other,
     enabled = false,
     energy_required = 0.5,
     ingredients = {},
@@ -32,6 +37,7 @@ local recipes =
     type = "recipe",
     name = shared.recipes.hive_lab,
     localised_name = {"recipe-name." .. shared.recipes.hive_lab},
+    subgroup = subgroup_other,
     enabled = false,
     energy_required = 0.5,
     ingredients = {},
@@ -44,6 +50,7 @@ local recipes =
     type = "recipe",
     name = shared.recipes.hive_spawner,
     localised_name = {"recipe-name." .. shared.recipes.hive_spawner},
+    subgroup = subgroup_other,
     enabled = false,
     energy_required = 0.5,
     ingredients = {},
@@ -54,6 +61,7 @@ local recipes =
     type = "recipe",
     name = shared.recipes.hive_spitter_spawner,
     localised_name = {"recipe-name." .. shared.recipes.hive_spitter_spawner},
+    subgroup = subgroup_other,
     enabled = false,
     energy_required = 0.5,
     ingredients = {},
@@ -65,6 +73,7 @@ local recipes =
     type = "recipe",
     name = shared.recipes.pollution_generator,
     localised_name = {"recipe-name." .. shared.recipes.pollution_generator},
+    subgroup = subgroup_other,
     enabled = true,
     energy_required = 0.5,
     ingredients = {},
@@ -75,6 +84,7 @@ local recipes =
     type = "recipe",
     name = shared.recipes.pheromones_on,
     localised_name = {"recipe-name." .. shared.recipes.pheromones_on},
+    subgroup = subgroup_pheromones,
     enabled = false,
     energy_required = 0.5,
     ingredients = {},
@@ -88,6 +98,7 @@ local recipes =
     localised_name = {"recipe-name." .. shared.recipes.pheromones_off},
     icon = data.raw["item"][shared.items.pheromones].icon,
     icon_size = data.raw["item"][shared.items.pheromones].icon_size,
+    subgroup = subgroup_pheromones,
     enabled = false,
     energy_required = 0.5,
     ingredients = {{type = "item", name = shared.items.pheromones, amount = 1}},
@@ -105,6 +116,7 @@ for _, tier in pairs(shared.worm_tiers) do
     type = "recipe",
     name = w.recipe,
     localised_name = {"recipe-name." .. w.recipe},
+    subgroup = subgroup_other,
     enabled = false,
     energy_required = 0.5,
     ingredients = {},

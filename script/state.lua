@@ -35,6 +35,9 @@ function M.get()
   if not state.hive_roles            then state.hive_roles            = {} end
   if not state.rejected_players      then state.rejected_players      = {} end
   if not state.worker_jobs           then state.worker_jobs           = {} end
+  if not state.hives_by_player       then state.hives_by_player       = {} end
+  if not state.hive_nodes            then state.hive_nodes            = {} end
+  if not state.hive_storage          then state.hive_storage          = {} end
   return state
 end
 

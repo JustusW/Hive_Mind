@@ -1,4 +1,5 @@
 local shared = require("shared")
+local space_age_assets = require("data.prototypes.space_age_assets")
 
 local science_proto  = data.raw["tool"]["automation-science-pack"]
 local biter_proto    = data.raw["unit"]["small-biter"]
@@ -28,8 +29,8 @@ local prototypes =
     name = shared.items.hive,
     localised_name = {"item-name." .. shared.items.hive},
     localised_description = build_cost_description(0),
-    icons = {{icon = spawner_proto.icon, icon_size = spawner_proto.icon_size,
-              tint = {r=0.90, g=0.35, b=0.05, a=1}}},
+    icon = space_age_assets.gleba_spawner_icon,
+    icon_size = space_age_assets.icon_size,
     subgroup = "defensive-structure",
     order = "z[hive]-a[hive]",
     place_result = shared.entities.hive,
@@ -40,8 +41,8 @@ local prototypes =
     name = shared.items.hive_node,
     localised_name = {"item-name." .. shared.items.hive_node},
     localised_description = build_cost_description(shared.build_costs[shared.entities.hive_node]),
-    icons = {{icon = spawner_proto.icon, icon_size = spawner_proto.icon_size,
-              tint = {r=0.10, g=0.75, b=0.45, a=1}}},
+    icon = space_age_assets.gleba_spawner_small_icon,
+    icon_size = space_age_assets.icon_size,
     subgroup = "defensive-structure",
     order = "z[hive]-b[hive-node]",
     place_result = shared.entities.hive_node,
@@ -52,8 +53,8 @@ local prototypes =
     name = shared.items.hive_lab,
     localised_name = {"item-name." .. shared.items.hive_lab},
     localised_description = build_cost_description(shared.build_costs[shared.entities.hive_lab]),
-    icons = {{icon = spawner_proto.icon, icon_size = spawner_proto.icon_size,
-              tint = {r=0.55, g=0.10, b=0.85, a=1}}},
+    icon = space_age_assets.biolab_icon,
+    icon_size = space_age_assets.icon_size,
     subgroup = "production-machine",
     order = "z[hive]-c[hive-lab]",
     place_result = shared.entities.hive_lab,

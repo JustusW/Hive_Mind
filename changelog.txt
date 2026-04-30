@@ -1,9 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.1.0
+Date: 2026-04-30
+  Changes:
+    - Mod folder renamed to Hive_Mind_Reworked to match the title; locale and asset paths follow.
+    - Bugfix pass on the worker dispatcher and supporting modules.
+---------------------------------------------------------------------------------------------------
 Version: 0.7.0
 Date: 2026-04-30
   Renamed:
     - Mod retitled from "Hive Mind Reloaded" to "Hive Mind Reworked".
     - Internal mod portal name changed from "Hive_Mind" to "Hive_Mind_Reworked".
+    - Hive, Hive Node, Hive Lab, and hive worker visuals now use vendored Gleba/Biolab/wiggler assets even when Space Age is disabled.
   Major:
     - Replaced the flying construction-bot pipeline with a unit-based worker dispatcher (script/workers.lua). Hive workers are now ground-walking units, not flying robots.
     - Worker base is small-wriggler-pentapod when Space Age is loaded; falls back to small-biter otherwise.
@@ -22,6 +29,7 @@ Date: 2026-04-30
     - Placements over trees / rocks / cliffs are refused and any auto-deconstruction order on those obstructions is cancelled.
     - Ghosts that cannot be fulfilled (tech, obstruction, charge failure, missing item proto) are destroyed instead of left lingering.
     - Hive workers are excluded from creature roles so the absorber can't try to file them as hm-creature-hm-hive-worker (which would crash on_tick).
+    - Active Pheromones now make hives disgorge stored creatures and send them toward the pheromone carrier; absorption pauses while the lure is active.
   Visual:
     - Hive renders as a 2× scaled gleba-spawner ("egg raft") tinted orange-red when Space Age is loaded; falls back to a tinted biter-spawner.
     - Floating pollution label above each hive shows the network's available pollution, recoloured green / amber / red.

@@ -71,6 +71,58 @@ local function command_unit_to_position(unit, position)
   }
 end
 
+local function player_has_pheromones(player)
+  if not (player and player.valid) then return false end
+  local cursor = player.cursor_stack
+  if cursor and cursor.valid_for_read and cursor.name == shared.items.pheromones then
+    return true
+  end
+  local inv = player.get_main_inventory()
+  return inv and inv.get_item_count(shared.items.pheromones) > 0
+end
+
+local function active_pheromone_player(s)
+  for player_index in pairs(s.joined_players) do
+    local player = game.get_player(player_index)
+    if player_has_pheromones(player) then return player end
+  end
+end
+
+local function disgorge_hive_units(hive, target_position, hive_force)
+  local chest = Hive.get_chest(hive)
+  if not (chest and target_position and hive_force) then return end
+  local inv = chest.get_inventory(defines.inventory.chest)
+  if not inv then return end
+
+  for i = 1, #inv do
+    local stack = inv[i]
+    if stack and stack.valid_for_read then
+      local item_name = stack.name
+      local unit_name = shared.creature_unit_name(item_name)
+      if unit_name and prototypes.entity[unit_name] then
+        local count = stack.count
+        local spawned = 0
+        for _ = 1, count do
+          local pos = hive.surface.find_non_colliding_position(unit_name, hive.position, 12, 0.5)
+          if pos then
+            local unit = hive.surface.create_entity{
+              name = unit_name,
+              position = pos,
+              force = hive_force,
+              raise_built = false
+            }
+            if unit and unit.valid then
+              spawned = spawned + 1
+              command_unit_to_position(unit, target_position)
+            end
+          end
+        end
+        if spawned > 0 then inv.remove{name = item_name, count = spawned} end
+      end
+    end
+  end
+end
+
 -- ── Absorption ───────────────────────────────────────────────────────────────
 
 -- Eat any hive-eligible unit standing on the hive into its storage chest.
@@ -103,6 +155,7 @@ local function absorb_units_into_hive(entity)
 end
 
 function M.tick_absorption()
+  if active_pheromone_player(State.get()) then return end
   for _, hive in pairs(Hive.all()) do absorb_units_into_hive(hive) end
 end
 
@@ -181,19 +234,14 @@ function M.tick_recruitment()
   -- One pheromone player wins: pick the first one we see that's actually
   -- holding the lure. Multiplayer with multiple pheromone-carriers is rare
   -- and the simple choice keeps the per-tick cost bounded.
-  local pheromone_player
-  for player_index in pairs(s.joined_players) do
-    local player = game.get_player(player_index)
-    if player and player.valid then
-      local inv = player.get_main_inventory()
-      if inv and inv.get_item_count(shared.items.pheromones) > 0 then
-        pheromone_player = player
-        break
-      end
-    end
-  end
+  local pheromone_player = active_pheromone_player(s)
 
   local hives = Hive.all()
+  if pheromone_player then
+    for _, hive in pairs(hives) do
+      disgorge_hive_units(hive, pheromone_player.position, hive_force)
+    end
+  end
 
   -- Hives: target is the hive itself (or the pheromone player if any).
   for _, hive in pairs(hives) do
