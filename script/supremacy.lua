@@ -24,10 +24,11 @@
 -- Force filter `{player, neutral}` excludes hive force and enemy force from
 -- find_entities_filtered, so hive-side entities and vanilla biters never appear.
 
-local shared = require("shared")
-local Hive   = require("script.hive")
-local Force  = require("script.force")
-local State  = require("script.state")
+local shared    = require("shared")
+local Hive      = require("script.hive")
+local Force     = require("script.force")
+local State     = require("script.state")
+local Telemetry = require("script.telemetry")
 
 local M = {}
 
@@ -104,31 +105,44 @@ local function rebuild_cache(member, range, hive_force, now)
   local surface = member.surface
   if not (surface and surface.valid) then return end
 
+  Telemetry.bump_supremacy("rebuild_calls")
+  Telemetry.bump_op("find")
+
   local found = surface.find_entities_filtered{ area = area, force = SCAN_FORCES }
   if not found or #found == 0 then return end
 
   local creep_name = shared.creep_tile
+  local added = 0
 
   for _, entity in ipairs(found) do
-    if entity.valid and not SKIP_TYPE[entity.type] and entity.unit_number then
-      local pos  = entity.position
-      local tile = surface.get_tile(pos.x, pos.y)
-      if tile and tile.valid and tile.name == creep_name then
-        local is_tree = entity.type == "tree"
-        local lifetime = is_tree and shared.supremacy.tree_lifetime
-                                  or shared.supremacy.building_lifetime
-        local max_hp = (entity.prototype and entity.prototype.max_health)
-                       or entity.health or 50
-        rec.entries[entity.unit_number] = {
-          entity           = entity,
-          lifetime_seconds = lifetime,
-          is_tree          = is_tree,
-          pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
-          dmg_per_tick     = damage_per_tick(max_hp, lifetime)
-        }
+    if entity.valid and not SKIP_TYPE[entity.type] then
+      if not entity.unit_number then
+        Telemetry.bump_supremacy("no_unit_number")
+      else
+        local pos  = entity.position
+        local tile = surface.get_tile(pos.x, pos.y)
+        if tile and tile.valid and tile.name == creep_name then
+          local is_tree = entity.type == "tree"
+          local lifetime = is_tree and shared.supremacy.tree_lifetime
+                                    or shared.supremacy.building_lifetime
+          local max_hp = (entity.prototype and entity.prototype.max_health)
+                         or entity.health or 50
+          rec.entries[entity.unit_number] = {
+            entity           = entity,
+            lifetime_seconds = lifetime,
+            is_tree          = is_tree,
+            pollution_burst  = is_tree and tree_pollution_amount(entity) or 0,
+            dmg_per_tick     = damage_per_tick(max_hp, lifetime)
+          }
+          added = added + 1
+        else
+          Telemetry.bump_supremacy("on_creep_skip")
+        end
       end
     end
   end
+
+  Telemetry.bump_supremacy("rebuild_added", added)
 end
 
 local function damage_cache(rec, hive_force)
@@ -140,8 +154,11 @@ local function damage_cache(rec, hive_force)
     else
       local pre_pos = {x = entity.position.x, y = entity.position.y}
       local surface = entity.surface
+      Telemetry.bump_supremacy("damage_calls")
+      Telemetry.bump_op("damage")
       entity.damage(e.dmg_per_tick, hive_force, "physical")
       if not entity.valid then
+        Telemetry.bump_supremacy("damage_killed")
         if e.is_tree and e.pollution_burst > 0 and surface and surface.valid then
           surface.pollute(pre_pos, e.pollution_burst)
         end
@@ -189,6 +206,7 @@ function M.tick()
     if not present then root[unit_number] = nil end
   end
 
+  local total_cache = 0
   for _, m in ipairs(members) do
     local rec = cache_for_member(m.entity.unit_number)
     local last = rec.last_scan_tick
@@ -196,7 +214,12 @@ function M.tick()
       rebuild_cache(m.entity, m.range, hive_force, now)
     end
     damage_cache(rec, hive_force)
+    -- Snapshot cache size for telemetry.
+    if rec.entries then
+      for _ in pairs(rec.entries) do total_cache = total_cache + 1 end
+    end
   end
+  Telemetry.set_supremacy("cache_size", total_cache)
 end
 
 return M

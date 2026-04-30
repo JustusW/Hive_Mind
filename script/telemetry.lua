@@ -21,6 +21,40 @@ local scanned = 0
 -- Per-flush counters for the [recruit] line.
 local recruit_counts = { group = 0, trickle = 0, skipped = 0 }
 
+-- Per-flush operation counters for the [perf] line. Complement to ms timings,
+-- which are zero-floored under ~15 ms on Windows os.clock granularity. Op
+-- counts give us shape data even when ms is 0.
+local op_counts = {
+  find         = 0,  -- find_entities_filtered calls
+  recruit      = 0,  -- units force-flipped this window
+  absorb       = 0,  -- units absorbed (hive + node)
+  damage       = 0,  -- supremacy damage applications
+  dispatch     = 0,  -- pheromone-vent dispatches
+}
+
+-- Probe counters for the attack-group bypass. Tells us whether the
+-- commandable.unit_group / commandable.group property ever resolves on the
+-- current Factorio build.
+local probe_counts = {
+  ag_unit_group_hit = 0,  -- c.unit_group returned a valid group
+  ag_group_hit      = 0,  -- c.unit_group failed/nil; c.group returned a valid group
+  ag_miss           = 0,  -- neither resolved (most defenders)
+  ag_pcall_err      = 0   -- both raised — engine doesn't expose either
+}
+
+-- Per-flush supremacy probes. Lets us see whether the cache is being filled,
+-- whether damage calls actually run, and whether they kill anything. Helps
+-- diagnose "nothing is taking damage" without extra logging.
+local supremacy_counts = {
+  cache_size      = 0,  -- total entries across all members at flush
+  rebuild_calls   = 0,  -- how many candidate-scan rebuilds ran this window
+  rebuild_added   = 0,  -- entities added to cache by rebuilds
+  damage_calls    = 0,  -- entity.damage invocations
+  damage_killed   = 0,  -- entries that became invalid post-damage
+  on_creep_skip   = 0,  -- candidates skipped because tile wasn't creep
+  no_unit_number  = 0   -- candidates skipped because entity.unit_number was nil
+}
+
 local function fmt_ms(seconds)
   return string.format("%.3f", (seconds or 0) * 1000)
 end
@@ -62,6 +96,35 @@ function M.bump_recruit(category)
   end
 end
 
+-- Bump an op-count.
+function M.bump_op(category, n)
+  if op_counts[category] ~= nil then
+    op_counts[category] = op_counts[category] + (n or 1)
+  end
+end
+
+-- Bump an attack-group probe counter.
+function M.bump_probe(category)
+  if probe_counts[category] ~= nil then
+    probe_counts[category] = probe_counts[category] + 1
+  end
+end
+
+-- Supremacy-specific probe counters. Use bump_supremacy for incremental
+-- counters (rebuild_calls, damage_calls, …) and set_supremacy for snapshots
+-- (cache_size).
+function M.bump_supremacy(category, n)
+  if supremacy_counts[category] ~= nil then
+    supremacy_counts[category] = supremacy_counts[category] + (n or 1)
+  end
+end
+
+function M.set_supremacy(category, n)
+  if supremacy_counts[category] ~= nil then
+    supremacy_counts[category] = n or 0
+  end
+end
+
 -- Append a [recruit] telemetry line and reset the per-flush counters. Reads
 -- the current bucket state directly from `state.recruit_buckets` so the line
 -- always reflects ground truth at flush time.
@@ -84,7 +147,7 @@ function M.flush_recruit(tick)
   end
 
   local line = string.format(
-    "[recruit] tick=%d networks=%d tokens=%s R=%s spawners=%s group=%d trickle=%d skipped=%d",
+    "[recruit] tick=%d networks=%d tokens=%s R=%s spawners=%s group=%d trickle=%d skipped=%d ag_ug=%d ag_g=%d ag_miss=%d ag_err=%d",
     tick,
     #keys,
     arr_to_str(tokens),
@@ -92,13 +155,21 @@ function M.flush_recruit(tick)
     arr_to_str(spawners),
     recruit_counts.group   or 0,
     recruit_counts.trickle or 0,
-    recruit_counts.skipped or 0
+    recruit_counts.skipped or 0,
+    probe_counts.ag_unit_group_hit or 0,
+    probe_counts.ag_group_hit      or 0,
+    probe_counts.ag_miss           or 0,
+    probe_counts.ag_pcall_err      or 0
   )
   helpers.write_file("hm-debug.txt", line .. "\n", true)
 
   recruit_counts.group   = 0
   recruit_counts.trickle = 0
   recruit_counts.skipped = 0
+  probe_counts.ag_unit_group_hit = 0
+  probe_counts.ag_group_hit      = 0
+  probe_counts.ag_miss           = 0
+  probe_counts.ag_pcall_err      = 0
 end
 
 -- Append a [perf] line for the cadence window and reset accumulators.
@@ -114,16 +185,47 @@ function M.flush_perf(tick)
   end
 
   local line = string.format(
-    "[perf] tick=%d scanned=%d %s total_ms=%s",
+    "[perf] tick=%d scanned=%d %s total_ms=%s find=%d recruit=%d absorb=%d damage=%d dispatch=%d",
     tick,
     scanned,
     table.concat(parts, " "),
-    fmt_ms(total)
+    fmt_ms(total),
+    op_counts.find     or 0,
+    op_counts.recruit  or 0,
+    op_counts.absorb   or 0,
+    op_counts.damage   or 0,
+    op_counts.dispatch or 0
   )
   helpers.write_file("hm-debug.txt", line .. "\n", true)
 
+  -- Supremacy probe line.
+  local sup = string.format(
+    "[supremacy] tick=%d cache=%d rebuilds=%d added=%d damages=%d killed=%d off_creep=%d no_unit_number=%d",
+    tick,
+    supremacy_counts.cache_size     or 0,
+    supremacy_counts.rebuild_calls  or 0,
+    supremacy_counts.rebuild_added  or 0,
+    supremacy_counts.damage_calls   or 0,
+    supremacy_counts.damage_killed  or 0,
+    supremacy_counts.on_creep_skip  or 0,
+    supremacy_counts.no_unit_number or 0
+  )
+  helpers.write_file("hm-debug.txt", sup .. "\n", true)
+
   timings = {}
   scanned = 0
+  op_counts.find     = 0
+  op_counts.recruit  = 0
+  op_counts.absorb   = 0
+  op_counts.damage   = 0
+  op_counts.dispatch = 0
+  supremacy_counts.rebuild_calls   = 0
+  supremacy_counts.rebuild_added   = 0
+  supremacy_counts.damage_calls    = 0
+  supremacy_counts.damage_killed   = 0
+  supremacy_counts.on_creep_skip   = 0
+  supremacy_counts.no_unit_number  = 0
+  -- cache_size is a snapshot, set by Supremacy.tick on each pass; leave it.
 end
 
 return M

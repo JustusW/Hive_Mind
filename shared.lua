@@ -207,7 +207,7 @@ shared.recruit =
   -- Trickle rate per spawner per second.
   per_spawner_per_second = 0.05,
   -- Token bucket cap = factor × R, where R = spawner_count × per_spawner_per_second.
-  bucket_cap_factor = 5,
+  bucket_cap_factor = 10,
   -- When true, attack-group biters also consume tokens. Default false:
   -- pollution-driven biters bypass the throttle.
   gate_attack_groups = false

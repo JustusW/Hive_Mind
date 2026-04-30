@@ -137,6 +137,7 @@ function M.absorb_at_hive(entity)
 
   local hive_force  = Force.get_hive()
   local enemy_force = Force.get_enemy()
+  Telemetry.bump_op("find")
   local units = entity.surface.find_entities_filtered{
     position = entity.position, radius = 6, type = "unit"
   }
@@ -152,6 +153,7 @@ function M.absorb_at_hive(entity)
       if prototypes.item[item_name] then
         unit.destroy({raise_destroy = true})
         inv.insert{name = item_name, count = 1}
+        Telemetry.bump_op("absorb")
       end
     end
   end
@@ -186,6 +188,7 @@ function M.absorb_at_node(node, ctx)
 
   local hive_force  = ctx.hive_force
   local enemy_force = ctx.enemy_force
+  Telemetry.bump_op("find")
   local units = node.surface.find_entities_filtered{
     position = node.position, radius = 6, type = "unit"
   }
@@ -197,6 +200,7 @@ function M.absorb_at_node(node, ctx)
       if prototypes.item[item_name] then
         unit.destroy({raise_destroy = true})
         inv.insert{name = item_name, count = 1}
+        Telemetry.bump_op("absorb")
       end
     end
   end
@@ -262,14 +266,30 @@ end
 -- 2.0 API: a unit's group reference is reachable via the unit's commandable,
 -- but the property name varies between Factorio releases. Try the known
 -- spellings under pcall so a missing property doesn't take down on_tick.
+-- Probe counters (ag_*) record which spelling worked so we can confirm the
+-- bypass is actually firing on this engine build.
 local function is_attack_group_member(unit)
   local c = unit.commandable
-  if not c then return false end
-  local ok, g = pcall(function() return c.unit_group end)
-  if not ok or g == nil then
-    ok, g = pcall(function() return c.group end)
+  if not c then
+    Telemetry.bump_probe("ag_miss")
+    return false
   end
-  return ok and g ~= nil and g.valid
+  local ok1, g1 = pcall(function() return c.unit_group end)
+  if ok1 and g1 ~= nil and g1.valid then
+    Telemetry.bump_probe("ag_unit_group_hit")
+    return true
+  end
+  local ok2, g2 = pcall(function() return c.group end)
+  if ok2 and g2 ~= nil and g2.valid then
+    Telemetry.bump_probe("ag_group_hit")
+    return true
+  end
+  if not ok1 and not ok2 then
+    Telemetry.bump_probe("ag_pcall_err")
+  else
+    Telemetry.bump_probe("ag_miss")
+  end
+  return false
 end
 
 -- Resolve and refresh the recruit bucket for the network containing
@@ -347,6 +367,7 @@ end
 local function recruit_around(recruiter, radius, default_target, ctx, bucket, network)
   local enemy_force = ctx.enemy_force
   local hive_force  = ctx.hive_force
+  Telemetry.bump_op("find")
   local units = recruiter.surface.find_entities_filtered{
     position = recruiter.position, radius = radius, type = "unit"
   }
@@ -370,6 +391,7 @@ local function recruit_around(recruiter, radius, default_target, ctx, bucket, ne
           command_unit_to_entity(unit, target.entity)
         end
         Telemetry.bump_recruit(bypass and "group" or "trickle")
+        Telemetry.bump_op("recruit")
       else
         Telemetry.bump_recruit("skipped")
       end

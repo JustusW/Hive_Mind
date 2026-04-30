@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.3
+Date: 2026-04-30
+  Tunables:
+    - Bumped recruit.bucket_cap_factor 5 → 10. Networks now hold up to 20s of saved-up trickle, so previously-untouched pockets get a brief surge instead of a dribble when the player walks past.
+  Telemetry:
+    - [perf] line gains find / recruit / absorb / damage / dispatch operation counters. Wallclock ms still emitted (zero-floored under ~15ms on Windows os.clock granularity); op counts give shape data when ms is 0.
+    - [recruit] line gains attack-group probe counters (ag_ug, ag_g, ag_miss, ag_err) so we can confirm which spelling of LuaCommandable.unit_group / .group works on the running engine and how often the bypass actually fires.
+    - New [supremacy] line: cache size, rebuild calls, entries added, damage calls, kills, off-creep skips, and entities skipped because they had no unit_number. Diagnoses "nothing is taking damage" without code dives.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.2
 Date: 2026-04-30
   Bugfixes:

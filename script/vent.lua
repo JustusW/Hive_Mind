@@ -22,6 +22,7 @@ local State     = require("script.state")
 local Force     = require("script.force")
 local Hive      = require("script.hive")
 local Network   = require("script.network")
+local Telemetry = require("script.telemetry")
 
 local M = {}
 
@@ -157,6 +158,7 @@ local function dispatch(record)
   local hive_force = Force.get_hive()
   if not hive_force then return end
 
+  Telemetry.bump_op("find")
   local in_radius = surface.find_entities_filtered{
     position = entity.position,
     radius   = shared.pheromone_vent.arrival_radius,
@@ -181,6 +183,7 @@ local function dispatch(record)
     end
   end
   group.start_moving()
+  Telemetry.bump_op("dispatch")
 
   record.gather_count = 0
   record.seen_units   = {}
