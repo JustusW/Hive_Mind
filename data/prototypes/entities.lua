@@ -82,8 +82,11 @@ hive.minable               = {mining_time = 0.5, result = shared.items.hive}
 hive.max_health            = 2000
 hive.logistics_radius      = shared.ranges.hive
 hive.construction_radius   = shared.ranges.hive
-hive.robot_slots_count     = shared.hive_robot_count
-hive.material_slots_count  = 200
+-- The hive is shaped like a roboport for its construction-radius / charting
+-- behaviour, but it does not run a logistic-bot pipeline. Workers are units
+-- spawned on demand by the dispatcher (see script/workers.lua).
+hive.robot_slots_count     = 0
+hive.material_slots_count  = 0
 hive.energy_source         = {type = "void"}
 hive.energy_usage          = "1W"
 hive.charging_energy       = "10MW"
@@ -147,70 +150,22 @@ hive_lab.entity_info_icon_shift = nil
 if hive_lab.working_visualisations then hive_lab.working_visualisations = nil end
 if hive_lab.light                  then hive_lab.light = nil end
 
--- ── Construction Robot (visible biter) ────────────────────────────────────────
+-- ── Hive Worker ───────────────────────────────────────────────────────────────
+-- A unit (small-biter clone) commanded by the script-side dispatcher in
+-- script/workers.lua. It walks to a ghost, materialises it, and dies on
+-- arrival. No flying, no logistic-bot AI — just a unit with go_to_location
+-- commands, so pathfinding and animation are handled by the engine.
 
-local biter_scale = 0.25
-local biter_anim =
-{
-  filenames =
-  {
-    "__base__/graphics/entity/biter/biter-run-1.png",
-    "__base__/graphics/entity/biter/biter-run-2.png",
-    "__base__/graphics/entity/biter/biter-run-3.png",
-    "__base__/graphics/entity/biter/biter-run-4.png"
-  },
-  width           = 398,
-  height          = 310,
-  shift           = {-1/32, -5/32},
-  line_length     = 8,
-  lines_per_file  = 8,
-  frame_count     = 16,
-  direction_count = 16,
-  scale           = biter_scale,
-  allow_forced_downscale = true
-}
-local biter_shadow =
-{
-  filenames =
-  {
-    "__base__/graphics/entity/biter/biter-run-shadow-1.png",
-    "__base__/graphics/entity/biter/biter-run-shadow-2.png",
-    "__base__/graphics/entity/biter/biter-run-shadow-3.png",
-    "__base__/graphics/entity/biter/biter-run-shadow-4.png"
-  },
-  width           = 432,
-  height          = 292,
-  shift           = {8/32, -1/32},
-  line_length     = 8,
-  lines_per_file  = 8,
-  frame_count     = 16,
-  direction_count = 16,
-  scale           = biter_scale,
-  allow_forced_downscale = true,
-  draw_as_shadow  = true
-}
-
-local construction_robot = table.deepcopy(data.raw["construction-robot"]["construction-robot"])
-construction_robot.name                         = shared.entities.construction_robot
-construction_robot.localised_name               = {"entity-name."        .. shared.entities.construction_robot}
-construction_robot.localised_description        = {"entity-description." .. shared.entities.construction_robot}
-construction_robot.minable                      = nil
-construction_robot.max_health                   = 10
-construction_robot.max_energy                   = "100MJ"
-construction_robot.energy_per_move              = "0.001J"
-construction_robot.energy_per_tick              = "0J"
-construction_robot.speed                        = 0.18
-construction_robot.construction_vector          = {0, -0.4}
-construction_robot.idle                         = biter_anim
-construction_robot.in_motion                    = biter_anim
-construction_robot.idle_with_cargo              = biter_anim
-construction_robot.in_motion_with_cargo         = biter_anim
-construction_robot.working                      = biter_anim
-construction_robot.shadow_idle                  = biter_shadow
-construction_robot.shadow_in_motion             = biter_shadow
-construction_robot.shadow_idle_with_cargo       = biter_shadow
-construction_robot.shadow_in_motion_with_cargo  = biter_shadow
-construction_robot.shadow_working               = biter_shadow
+local hive_worker = table.deepcopy(data.raw["unit"]["small-biter"])
+hive_worker.name                    = shared.entities.hive_worker
+hive_worker.localised_name          = {"entity-name."        .. shared.entities.hive_worker}
+hive_worker.localised_description   = {"entity-description." .. shared.entities.hive_worker}
+hive_worker.minable                 = nil
+hive_worker.max_health              = 100
+hive_worker.movement_speed          = (hive_worker.movement_speed or 0.05) * 1.5
+hive_worker.distraction_cooldown    = 0
+hive_worker.pollution_to_join_attack = nil
+hive_worker.spawning_time_modifier  = nil
 
 -- ── Hive Storage Chest (invisible) ────────────────────────────────────────────
 -- Functional passive-provider chest placed beside every hive. The visible hive
@@ -249,7 +204,7 @@ tint_sprite(pollution_gen.picture, {r = 0.9, g = 0.2, b = 0.0, a = 1})
 -- ── Spawner / Worm proxy ghosts ───────────────────────────────────────────────
 -- god-controller can't place unit-spawner / turret entities directly on the
 -- enemy force, so the player's item places a lab-shaped proxy. The script's
--- on_robot_built_entity handler swaps each proxy for the real entity.
+-- Build.on_built handler swaps each proxy for the real entity.
 --
 -- Visually the proxy is a tinted spawner so the build-site briefly looks right
 -- before the real entity replaces it.
@@ -321,7 +276,7 @@ end
 local entities =
 {
   hive, hive_node, hive_lab,
-  construction_robot, hive_storage, pollution_gen,
+  hive_worker, hive_storage, pollution_gen,
   spawner_ghost, spitter_spawner_ghost
 }
 for _, w in pairs(worm_proxies) do

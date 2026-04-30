@@ -120,24 +120,7 @@ function M.all()
   return result
 end
 
--- ── Worker robots ─────────────────────────────────────────────────────────────
-
--- Top up the hive's roboport robot inventory to shared.hive_robot_count.
-function M.init(entity)
-  if not (entity and entity.valid) then return end
-  local robot_inv = entity.get_inventory(defines.inventory.roboport_robot)
-  if robot_inv then
-    local needed = shared.hive_robot_count
-                 - robot_inv.get_item_count(shared.items.construction_robot)
-    if needed > 0 then
-      robot_inv.insert{name = shared.items.construction_robot, count = needed}
-    end
-  end
-end
-
-function M.tick_robots()
-  for _, hive in pairs(M.all()) do M.init(hive) end
-end
+-- ── Worker corpse ─────────────────────────────────────────────────────────────
 
 -- Spawn a small-biter corpse at `entity` to fake a death animation.
 -- Used when a hive worker delivers a build and we silently destroy it

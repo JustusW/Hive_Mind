@@ -26,7 +26,7 @@ shared.entities =
   hive_node = "hm-hive-node",
   hive_lab = "hm-hive-lab",
   hive_storage = "hm-hive-storage",
-  construction_robot = "hm-construction-robot",
+  hive_worker = "hm-hive-worker",
   pollution_generator = "hm-pollution-generator",
   spawner_ghost = "hm-spawner-ghost",
   spitter_spawner_ghost = "hm-spitter-spawner-ghost"
@@ -42,7 +42,6 @@ shared.items =
   pheromones = "hm-pheromones",
   pollution = "hm-pollution",
   pollution_science_pack = "hm-pollution-science-pack",
-  construction_robot = "hm-construction-robot",
   pollution_generator = "hm-pollution-generator"
 }
 
@@ -103,13 +102,25 @@ shared.intervals =
   recruit = 120,
   absorb  = 30,
   supply  = 60,
-  robots  = 180,
+  workers = 6,   -- ghost-fulfilment dispatcher
   creep   = 3,
   labels  = 30,  -- pollution-display refresh on each hive
   loadout = 60   -- inventory + quickbar watchdog for hive directors
 }
 
-shared.hive_robot_count = 20
+-- Maximum simultaneously-in-flight workers per hive. Workers are spawned on
+-- demand by the dispatcher; exceeding this would queue jobs. There is no
+-- "stocked" worker pool — workers don't exist until the dispatcher needs one.
+shared.hive_workers_per_hive = 5
+-- Distance (tiles) at which a worker is considered to have arrived at its
+-- target ghost.
+shared.workers_arrival_radius = 2
+-- Ticks before a worker that hasn't reached its target is abandoned and the
+-- job is requeued. ~60s at 60 UPS.
+shared.workers_timeout_ticks = 60 * 60
+-- Maximum requeue attempts before we give up on a ghost (its cost stays
+-- charged; the ghost is destroyed silently so the queue doesn't spin).
+shared.workers_max_attempts = 3
 
 -- Pollution cost to build hive-tier structures via ghost placement.
 -- Anything not listed here uses the recipe-derived formula in script/main.lua.

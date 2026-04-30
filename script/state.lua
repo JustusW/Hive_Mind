@@ -2,6 +2,7 @@
 --
 --   joined_players       [player_index] = true
 --   rejected_players     [player_index] = true   (permanently opted out)
+--   worker_jobs          [ghost_unit_number]         = {ghost, worker, ...}
 --   hives_by_player      [player_index][unit_number] = {entity}
 --   hive_nodes           [unit_number]               = {entity, creep_layer, creep_step}
 --   hive_storage         [unit_number]               = {entity, chest, creep_layer, creep_step}
@@ -20,6 +21,7 @@ function M.get()
     {
       joined_players       = {},
       rejected_players     = {},
+      worker_jobs          = {},
       hives_by_player      = {},
       hive_nodes           = {},
       hive_storage         = {},
@@ -32,6 +34,7 @@ function M.get()
   if not state.pollution_generators then state.pollution_generators = {} end
   if not state.hive_roles            then state.hive_roles            = {} end
   if not state.rejected_players      then state.rejected_players      = {} end
+  if not state.worker_jobs           then state.worker_jobs           = {} end
   return state
 end
 

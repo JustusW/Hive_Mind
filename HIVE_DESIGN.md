@@ -48,9 +48,14 @@ Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive stor
 
 ## Hive workers
 
-- `hm-construction-robot` is a `construction-robot` prototype reskinned with small-biter sprites. Visible, fast, invincible.
-- `tick_robots` tops every hive's robot inventory back to `shared.hive_robot_count` on a 3-second interval.
-- When a worker delivers an item, `on_robot_built_entity` destroys it using the biter death animation rather than a silent removal.
+The hive worker is a `unit` (biter clone, hive-tinted, hive-force) commanded by a script-side dispatcher. There is no roboport-driven build pipeline: the hive prototype keeps `robot_slots_count = 0` and does no native auto-building. Every ghost is fulfilled by a worker that walks from the nearest hive to the build site, calls `surface.create_entity{raise_built = true}` to materialise it, and dies with a corpse animation.
+
+- `hm-hive-worker` is a unit prototype based on `small-biter`. Visible, ground-bound, friendly with enemy/spectator/hivemind. Health is high but not invulnerable.
+- `Workers.queue(ghost)` enqueues a pending materialisation. `fulfill_ghost` calls this after passing the tech / obstruction / consume guards — the chest insert + bot pickup hand-off is gone.
+- `Workers.tick()` runs every `shared.intervals.workers` ticks. It validates each pending job (ghost still valid, worker still valid, target still in range), spawns a worker at the closest in-network hive when capacity allows, and checks each in-flight worker's distance to its target. Within `WORKERS_ARRIVAL_RADIUS` tiles of the ghost the worker calls `surface.create_entity` for the ghost's entity name (with `raise_built = true`), destroys the ghost, and dies via `Hive.spawn_worker_corpse`.
+- A worker that doesn't reach its target inside `WORKERS_TIMEOUT_TICKS` is abandoned (killed) and its job is requeued so a fresh worker can try.
+- Capacity per hive: `shared.hive_workers_per_hive`. State lives at `state.worker_jobs[ghost_unit_number] = {ghost, worker, hive, deadline}`.
+- Worker death (gameplay attack, hive destroyed, etc.) cleans up via the existing `on_entity_died` handler, which drops the job back on the queue.
 
 ## Storage
 
@@ -89,7 +94,7 @@ Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive stor
 - `Cost.consume(surface, position, amount)` resolves the network, computes capacity, and only mutates state on the success path. If capacity is short it returns `false, "insufficient", {need, have}` without converting any biters.
 - `Cost.convert_creatures` consumes the minimum number of biters needed to reach the target — no surplus burn.
 - **Direct path**: `on_built_entity` for a real entity → `charge_or_refund` runs the consume. Failure refunds the item to the player's cursor and destroys the entity. Success refunds the item too (the cursor is intentionally infinite — pollution is the real cost).
-- **Ghost path**: `on_built_entity` for an `entity-ghost` → `fulfill_ghost` runs tech / obstruction / consume guards; any failure destroys the ghost so the world doesn't accumulate dead ghosts.
+- **Ghost path**: `on_built_entity` for an `entity-ghost` → `fulfill_ghost` runs tech / obstruction / consume guards. On success the ghost is enqueued via `Workers.queue` for a hive worker to walk to and materialise. Any failure destroys the ghost so the world doesn't accumulate dead ghosts.
 - Failure messages report the actual gap: `Insufficient pollution: __have__ / __need__ (have / need).`
 
 ## Obstruction guard

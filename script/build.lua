@@ -1,10 +1,13 @@
 -- Build pipeline: ghost fulfilment, direct placement, and proxy → real swap.
 --
--- Three placement paths:
+-- Two placement paths:
 --
---   1. Player places a hive item directly       → on_built_entity
---   2. Player places a ghost (any kind)         → on_built_entity → fulfill_ghost
---   3. Hive worker delivers a ghost             → on_robot_built_entity
+--   1. Player places a hive item directly  → on_built_entity (charge inline)
+--   2. Player places a ghost (any kind)    → on_built_entity → fulfill_ghost
+--      → cost charged, ghost queued in Workers; a unit walks to the ghost
+--      and surface.create_entity{raise_built = true} fires script_raised_built,
+--      which re-enters this handler with player_index = nil so cost-path
+--      branches no-op.
 --
 -- "Proxy" entities are placeholder prototypes whose only job is to be swapped
 -- for an enemy-force real entity (biter spawner, worm turret) once placed.
@@ -13,9 +16,9 @@ local shared    = require("shared")
 local State     = require("script.state")
 local Force     = require("script.force")
 local Hive      = require("script.hive")
-local Network   = require("script.network")
 local Cost      = require("script.cost")
 local Death     = require("script.death")
+local Workers   = require("script.workers")
 
 local M = {}
 
@@ -115,11 +118,11 @@ local function tech_for_ghost(ghost_name)
   return nil
 end
 
--- Pay the cost for `ghost` from the network and insert a fulfilment item into
--- the network's chest. The chest's worker then picks the item up and builds.
--- A ghost that cannot be fulfilled (any reason — tech, obstruction, charge
--- failure) is destroyed rather than left lingering, so the world doesn't
--- accumulate dead ghosts the player thinks will eventually build.
+-- Pay the cost for `ghost` from the network, then hand the ghost off to the
+-- Workers dispatcher. A unit walks from the nearest in-network hive to the
+-- ghost and materialises it on arrival. A ghost that cannot be fulfilled
+-- (any reason — tech, obstruction, charge failure) is destroyed rather than
+-- left lingering, so the world doesn't accumulate dead ghosts.
 local function fulfill_ghost(ghost, player_index)
   if not (ghost and ghost.valid) then return end
   local ghost_name = ghost.ghost_name
@@ -159,20 +162,10 @@ local function fulfill_ghost(ghost, player_index)
     return
   end
 
-  local item_name  = shared.ghost_items[ghost_name] or ghost_name
-  local item_proto = prototypes.item[item_name]
-  if not item_proto then
-    -- Cost was charged but no item to insert; the ghost would sit unbuilt,
-    -- so destroy it. Rare: only happens for entities whose item we can't
-    -- resolve.
-    ghost.destroy()
-    return
-  end
-  if not Network.insert(ghost.surface, ghost.position, {name = item_name, count = 1}) then
-    -- Network full: drop the item on the ground at the ghost as a fallback.
-    ghost.surface.spill_item_stack(
-      ghost.position, {name = item_name, count = 1}, true, ghost.force, false)
-  end
+  -- Cost paid, terrain clear: hand the ghost off to the worker dispatcher.
+  -- A unit at the closest in-network hive will walk to the ghost and
+  -- materialise it on arrival.
+  Workers.queue(ghost, player_index)
 end
 
 -- ── Direct-placement helpers ─────────────────────────────────────────────────
@@ -205,7 +198,6 @@ local function on_hive_placed(entity, player_index)
     Hive.track(player_index, entity)
   end
   Hive.create_chest(entity)
-  Hive.init(entity)
   Hive.chart(entity, shared.ranges.hive)
 
   local tech = entity.force.technologies[shared.technologies.hive_spawners]
@@ -223,9 +215,13 @@ function M.on_built(event)
   if not (entity and entity.valid) then return end
   local player_index = event.player_index
 
-  -- Obstruction guard for direct placements. Ghosts go through fulfill_ghost
-  -- which has its own guard.
-  if entity.type ~= "entity-ghost" and placement_obstructed(entity) then
+  -- Obstruction guard for direct player placements. Ghosts go through
+  -- fulfill_ghost which has its own guard. Script-raised builds (worker
+  -- materialisation) skip the guard — the originating ghost was already
+  -- vetted and we don't want to re-refuse our own materialisation.
+  if entity.type ~= "entity-ghost"
+     and player_index
+     and placement_obstructed(entity) then
     refuse_obstructed_placement(entity, player_index)
     return
   end
@@ -276,33 +272,6 @@ function M.on_built(event)
   if entity.type == "entity-ghost" then
     fulfill_ghost(entity, player_index)
     return
-  end
-end
-
-function M.on_robot_built(event)
-  local robot  = event.robot
-  local entity = event.entity or event.created_entity
-
-  if entity and entity.valid then
-    if entity.name == shared.entities.hive_node then
-      Hive.track_node(entity)
-      Hive.chart(entity, shared.ranges.hive_node)
-    elseif entity.name == shared.entities.pollution_generator then
-      State.get().pollution_generators[entity.unit_number] = entity
-    else
-      local real_name = proxy_real_name(entity.name)
-      if real_name then
-        swap_proxy_for_real(entity, real_name, Force.get_enemy())
-      end
-    end
-  end
-
-  -- Worker dies on the build site: corpse + silent destroy. We can't use
-  -- robot.die() because that would re-enter on_entity_died with this same
-  -- handler attached.
-  if robot and robot.valid and robot.name == shared.entities.construction_robot then
-    Hive.spawn_worker_corpse(robot)
-    robot.destroy()
   end
 end
 

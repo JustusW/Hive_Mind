@@ -38,7 +38,8 @@ local recipes =
     results = {{type = "item", name = shared.items.hive_lab, amount = 1}}
   },
   -- Biter spawner: gated by hm-hive-spawners. Player item places a proxy ghost;
-  -- on_robot_built_entity swaps the proxy for a real biter-spawner.
+  -- the worker dispatcher materialises the proxy and Build.on_built swaps it
+  -- for a real biter-spawner.
   {
     type = "recipe",
     name = shared.recipes.hive_spawner,

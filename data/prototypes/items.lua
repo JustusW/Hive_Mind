@@ -1,10 +1,8 @@
 local shared = require("shared")
 
 local science_proto  = data.raw["tool"]["automation-science-pack"]
-local robot_proto    = data.raw["construction-robot"]["construction-robot"]
 local biter_proto    = data.raw["unit"]["small-biter"]
 local spawner_proto  = data.raw["unit-spawner"]["biter-spawner"]
-local behemoth_proto = data.raw["unit"]["behemoth-biter"]
 
 -- Localised description for a placeable hive item that surfaces the build
 -- cost in the tooltip. `cost` may be 0 (free) or a positive number; nil
@@ -72,8 +70,8 @@ local prototypes =
     order = "z[hive]-d[pheromones]",
     stack_size = 1
   },
-  -- Spawner item — places the proxy ghost; on_robot_built_entity swaps it for
-  -- a real biter-spawner.
+  -- Spawner item — places the proxy ghost; the worker materialises it and
+  -- Build.on_built swaps it for a real biter-spawner.
   {
     type = "item",
     name = shared.items.hive_spawner,
@@ -112,20 +110,6 @@ local prototypes =
     place_result = shared.entities.pollution_generator,
     stack_size = 10
   },
-  -- Construction robot item — hidden, inserted into hives by script.
-  {
-    type = "item",
-    name = shared.items.construction_robot,
-    localised_name = {"entity-name." .. shared.entities.construction_robot},
-    icon = robot_proto.icon,
-    icon_size = robot_proto.icon_size,
-    hidden = true,
-    hidden_in_factoriopedia = true,
-    subgroup = "intermediate-product",
-    order = "z[hive]-z[robot]",
-    place_result = shared.entities.construction_robot,
-    stack_size = 100
-  }
 }
 
 -- Worm tier items: place_result is the proxy ghost for that tier.

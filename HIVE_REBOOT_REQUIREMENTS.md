@@ -8,7 +8,7 @@ You play a hive mind, not an engineer. You direct biters instead of crafting cir
 2. After joining you become a director with no physical body — the only items you carry are the buildings the hive has unlocked. Those items are pinned to your quickbar and refilled on a watchdog tick.
 3. Place a **Hive**. This is your foothold; recruitment and the construction network are anchored here.
 4. The hive draws biters in. They walk in and get absorbed; a floating label above each hive shows the network's available pollution.
-5. Place buildings directly (the cursor refills after each placement) or ghost-place them. The hive pays for construction by converting absorbed biters into pollution.
+5. Place buildings directly (the cursor refills after each placement) or ghost-place them. The hive pays for construction by converting absorbed biters into pollution. Ghost-placed builds are carried out by **hive workers** — ground-bound biter-shaped units that walk from the nearest hive to the build site and materialise the structure on arrival.
 6. Place **Hive Labs** to research. They consume creatures to make Pollution Science Packs.
 7. Research worm tiers, the infinite Attraction Reach, and other upgrades. Vanilla research is hidden — only the hive tree is visible.
 

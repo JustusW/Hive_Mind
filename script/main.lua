@@ -20,6 +20,7 @@ local Death     = require("script.death")
 local Creep     = require("script.creep")
 local Lab       = require("script.lab")
 local Labels    = require("script.labels")
+local Workers   = require("script.workers")
 local Debug     = require("script.debug")
 
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ local function on_tick(event)
   if tick % shared.intervals.recruit == 0 then Creatures.tick_recruitment() end
   if tick % shared.intervals.absorb  == 0 then Creatures.tick_absorption()  end
   if tick % shared.intervals.supply  == 0 then Lab.tick_supply()            end
-  if tick % shared.intervals.robots  == 0 then Hive.tick_robots()           end
+  if tick % shared.intervals.workers == 0 then Workers.tick()               end
   if tick % shared.intervals.creep   == 0 then Creep.tick()                 end
   if tick % shared.intervals.labels  == 0 then Labels.tick()                end
   if tick % shared.intervals.loadout == 0 then Director.refill_all_loadouts() end
@@ -63,13 +64,12 @@ script.on_configuration_changed(function()
     end
   end
 
-  -- Re-create any hive storage chest the migration lost, and top up robots.
+  -- Re-create any hive storage chest the migration lost.
   for _, hive in pairs(Hive.all()) do
     local record = Hive.get_storage(hive)
     if record and not (record.chest and record.chest.valid) then
       Hive.create_chest(hive)
     end
-    Hive.init(hive)
   end
 end)
 
@@ -108,12 +108,20 @@ script.on_event(e.on_player_gun_inventory_changed,   function(ev) clear_forbidde
 script.on_event(e.on_player_ammo_inventory_changed,  function(ev) clear_forbidden(ev, defines.inventory.character_ammo)  end)
 script.on_event(e.on_player_armor_inventory_changed, function(ev) clear_forbidden(ev, defines.inventory.character_armor) end)
 
--- Build pipeline.
+-- Build pipeline. Worker materialisations come back through script_raised_built
+-- with player_index = nil; Build.on_built no-ops the cost branches in that
+-- case. on_robot_built_entity is no longer hooked — there are no
+-- construction-robots in the hive, ghosts are fulfilled by the Workers
+-- dispatcher instead.
 script.on_event(e.on_built_entity,        Build.on_built)
 script.on_event(e.script_raised_built,    Build.on_built)
-script.on_event(e.on_robot_built_entity,  Build.on_robot_built)
 
--- Removal pipeline.
-script.on_event(e.on_entity_died,         Death.on_removed)
-script.on_event(e.on_robot_mined_entity,  Death.on_removed)
-script.on_event(e.script_raised_destroy,  Death.on_removed)
+-- Removal pipeline. Worker deaths route into Workers so the dispatcher can
+-- requeue an in-flight job whose unit got killed.
+local function on_removed(event)
+  Workers.on_worker_died(event.entity)
+  Death.on_removed(event)
+end
+script.on_event(e.on_entity_died,         on_removed)
+script.on_event(e.on_robot_mined_entity,  on_removed)
+script.on_event(e.script_raised_destroy,  on_removed)
