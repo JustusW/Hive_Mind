@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.7
+Date: 2026-04-30
+  Changes:
+    - Clicking a Hive Node now opens the chest of the nearest hive on the surface, mirroring the click-on-Hive behaviour. No more empty roboport GUI on nodes.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.6
 Date: 2026-04-30
   Bugfixes:

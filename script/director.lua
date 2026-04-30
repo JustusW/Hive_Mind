@@ -7,10 +7,11 @@
 -- This module also owns the join button GUI and the mining/decon interception
 -- handlers that keep the director from manipulating the world by hand.
 
-local shared = require("shared")
-local State  = require("script.state")
-local Force  = require("script.force")
-local Hive   = require("script.hive")
+local shared    = require("shared")
+local State     = require("script.state")
+local Force     = require("script.force")
+local Hive      = require("script.hive")
+local Creatures = require("script.creatures")
 
 local M = {}
 
@@ -350,6 +351,19 @@ function M.on_gui_opened(event)
       if chest and chest.valid then
         player.opened = chest
         return
+      end
+    end
+    -- Hive nodes have no chest of their own. Route the click to the chest
+    -- of the nearest hive on the surface so the player can inspect storage
+    -- from any node in the network.
+    if event.entity.name == shared.entities.hive_node then
+      local hive = Creatures.cached_nearest_hive(event.entity, Hive.all())
+      if hive and hive.valid then
+        local chest = Hive.get_chest(hive)
+        if chest and chest.valid then
+          player.opened = chest
+          return
+        end
       end
     end
     if allowed_entity_gui[event.entity.name] then return end
