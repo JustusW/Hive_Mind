@@ -66,6 +66,7 @@ Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive stor
 
 - A "network" is the set of hive + hive-node entities whose construction radii overlap, scoped to the hive force and the same surface.
 - Cost reads and writes treat the union of all member chests as one virtual inventory.
+- `Network.hives_for_position(surface, position, reach)` accepts an optional `reach` parameter: the seed check uses `s.range + reach` instead of `s.range`. With `reach = 0` (default), the position must be inside an existing structure's box. With `reach = shared.ranges.hive_node`, the position only has to be close enough that the new node's own range would overlap the network — used so the player can extend the network outward by chaining nodes without having to rebuild from inside the previous range. `Cost.placement_reach(entity_name)` returns this value: zero for everything except the hive node.
 
 ## Recruitment
 

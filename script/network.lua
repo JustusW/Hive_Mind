@@ -40,7 +40,15 @@ end
 --
 -- Algorithm: seed with anything covering the position, then expand by overlap
 -- until stable. Two structures "overlap" when their ranges touch.
-function M.hives_for_position(surface, position)
+--
+-- `reach` (optional, default 0) extends the seed check: a structure counts as
+-- covering `position` when `dist <= s.range + reach`. This lets the caller
+-- ask "would a new entity placed here, with its own range = reach, connect
+-- to the network?" — used for hive-node placement so the player can chain
+-- nodes outward without each new node having to land inside the previous
+-- one's box.
+function M.hives_for_position(surface, position, reach)
+  reach = reach or 0
   local structs = M.all_structures(surface)
   if #structs == 0 then return nil end
 
@@ -48,7 +56,8 @@ function M.hives_for_position(surface, position)
   for i, s in ipairs(structs) do
     local dx = s.entity.position.x - position.x
     local dy = s.entity.position.y - position.y
-    if dx * dx + dy * dy <= s.range * s.range then
+    local seed = s.range + reach
+    if dx * dx + dy * dy <= seed * seed then
       in_net[i] = true
     end
   end
@@ -97,9 +106,10 @@ function M.item_count(hives, item_name)
 end
 
 -- Insert `item_stack` into the first chest in the network covering
--- `position` that can accept it. Returns true on success.
+-- `position` that can accept it. Returns true on success. Uses the
+-- default reach (the position must already be inside the network).
 function M.insert(surface, position, item_stack)
-  local hives = M.hives_for_position(surface, position)
+  local hives = M.hives_for_position(surface, position, 0)
   if not hives then return false end
   for _, hive in pairs(hives) do
     local chest = Hive.get_chest(hive)

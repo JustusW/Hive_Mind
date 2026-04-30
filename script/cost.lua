@@ -134,16 +134,31 @@ function M.pollution_capacity(hives)
   return total
 end
 
--- Charge `amount` pollution from the network covering `position`.
+-- Reach extension applied when looking up a network for a placement. Most
+-- placements use 0 (the position must already sit inside the network's
+-- build zone). Hive nodes use their own range so the player can extend the
+-- network outward without having to plant each new node inside the
+-- previous one's footprint.
+function M.placement_reach(entity_name)
+  if entity_name == shared.entities.hive_node then
+    return shared.ranges.hive_node
+  end
+  return 0
+end
+
+-- Charge `amount` pollution from the network covering `position`. `reach`,
+-- when non-zero, lets the network resolver count any structure within
+-- `s.range + reach` of `position` as covering it (see Network for the
+-- node-placement rationale).
 -- Returns:  true                                     on success
 --           false, "no_hive"                         if no hive is in range
 --           false, "insufficient", {need, have}      if pool is too low (no
 --                                                    state mutation in this
 --                                                    case — biters stay biters)
-function M.consume(surface, position, amount)
+function M.consume(surface, position, amount, reach)
   if amount <= 0 then return true end
 
-  local hives = Network.hives_for_position(surface, position)
+  local hives = Network.hives_for_position(surface, position, reach or 0)
   if not hives then return false, "no_hive" end
 
   local need  = math.ceil(amount)
@@ -176,11 +191,13 @@ function M.consume(surface, position, amount)
   return true
 end
 
--- Convenience wrapper around consume() for build sites.
+-- Convenience wrapper around consume() for build sites. Applies the
+-- placement-reach extension keyed off the entity name so node placement
+-- can extend the network outward by its own range.
 function M.charge_build(surface, position, entity_name)
   local cost = M.build_cost(entity_name)
   if cost <= 0 then return true end
-  return M.consume(surface, position, cost)
+  return M.consume(surface, position, cost, M.placement_reach(entity_name))
 end
 
 -- ── Refund / messages ────────────────────────────────────────────────────────

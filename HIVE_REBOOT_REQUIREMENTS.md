@@ -45,6 +45,7 @@ Each placeable item lists its pollution cost in its tooltip.
 - Units recruited from a hive walk to that hive. Units recruited from a node walk to the nearest hive on the same surface (nodes have no storage of their own).
 - Each Hive and Hive Node has a 100×100 / 50×50 construction zone where it builds. Connected zones extend the network.
 - Connected hives and nodes share one resource pool.
+- **Node placement exception**: a Hive Node can be placed as long as it would connect to the network — i.e., the new node's own 50×50 box would overlap an existing hive or node — even if the placement position itself sits just outside the current network's build zone. All other buildings still require the placement position to be inside the network's build zone.
 - A single purple **creep** tile fills the same box outward in Chebyshev rings. Biters move faster on creep.
 
 ## Cost

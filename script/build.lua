@@ -151,7 +151,8 @@ local function fulfill_ghost(ghost, player_index)
   end
 
   local cost = Cost.build_cost(ghost_name)
-  local ok, reason, info = Cost.consume(ghost.surface, ghost.position, cost)
+  local ok, reason, info = Cost.consume(
+    ghost.surface, ghost.position, cost, Cost.placement_reach(ghost_name))
   if not ok then
     Cost.print_charge_failure(player_index, reason, info)
     ghost.destroy()
