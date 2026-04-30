@@ -21,6 +21,7 @@ Implementation choices and engine-level details that the requirements doc delibe
 - Two sibling buttons live in a private `hm-button-flow` under `player.gui.top`: **Join the Hive** and **Reject the Hive**. We avoid `mod_gui`'s shared frame so destroying the flow on commit also destroys the bordered container — no empty box left behind.
 - Rejection persists in `state.rejected_players[index]` and prints `gui.hm-hive-rejected` to that player.
 - A floating text render-object hovers above each hive, refreshed every `shared.intervals.labels` ticks. It shows `[item=hm-pollution] N` where N is the network's current pollution capacity, recoloured green / amber / red by health. The render id is persisted on the hive's storage record.
+- Clicking on a hive opens its hidden storage chest's inventory rather than the (empty) roboport GUI: `Director.on_gui_opened` intercepts `gui_type.entity` for `shared.entities.hive` and reassigns `player.opened` to the chest. The roboport prototype is kept for its construction-zone overlay and dashed connection lines, but the inventory the player cares about is the chest.
 
 ## Director loadout
 
@@ -32,8 +33,8 @@ Implementation choices and engine-level details that the requirements doc delibe
 
 | Player item | Built entity | Notes |
 |---|---|---|
-| `hm-hive` | `hm-hive` | Roboport prototype. Build / visibility: 100×100 box. 20 robot slots, 200 material slots, void-powered. |
-| `hm-hive-node` | `hm-hive-node` | Roboport prototype. Build / visibility: 50×50 box. No robots or material of its own. |
+| `hm-hive` | `hm-hive` | Roboport prototype, 0 robot / 0 material slots (kept for the build-zone overlay and dashed connection lines, not for bots). Storage lives in an adjacent passive-provider chest; clicking the hive routes to that chest's GUI. Build / visibility: 100×100 box. |
+| `hm-hive-node` | `hm-hive-node` | Roboport prototype, 0 robot / 0 material slots. Build / visibility: 50×50 box. |
 | `hm-hive-lab` | `hm-hive-lab` | Lab prototype. Only accepts `hm-pollution-science-pack`. |
 | `hm-biter-spawner` | vanilla `biter-spawner` | Player places a tinted proxy ghost (`hm-spawner-ghost`); `on_built_entity` swaps it for a real `biter-spawner` on the enemy force. |
 | `hm-spitter-spawner` | vanilla `spitter-spawner` | Same proxy mechanic via `hm-spitter-spawner-ghost`. |

@@ -10,6 +10,7 @@
 local shared = require("shared")
 local State  = require("script.state")
 local Force  = require("script.force")
+local Hive   = require("script.hive")
 
 local M = {}
 
@@ -333,17 +334,25 @@ local allowed_entity_gui =
   [shared.entities.hive_storage] = true
 }
 
--- Block hive directors from opening any GUI that isn't whitelisted.
+-- Block hive directors from opening any GUI that isn't whitelisted, and
+-- redirect the click on a hive to its hidden storage chest so the player
+-- doesn't see the empty roboport interface.
 function M.on_gui_opened(event)
   local player = game.get_player(event.player_index)
   if not M.is_player(player) then return end
   if event.gui_type == defines.gui_type.controller then return end
   if event.gui_type == defines.gui_type.crafting   then return end
   if event.gui_type == defines.gui_type.none       then return end
-  if event.gui_type == defines.gui_type.entity then
-    if event.entity and event.entity.valid and allowed_entity_gui[event.entity.name] then
-      return
+  if event.gui_type == defines.gui_type.entity
+     and event.entity and event.entity.valid then
+    if event.entity.name == shared.entities.hive then
+      local chest = Hive.get_chest(event.entity)
+      if chest and chest.valid then
+        player.opened = chest
+        return
+      end
     end
+    if allowed_entity_gui[event.entity.name] then return end
   end
   player.opened = nil
 end
