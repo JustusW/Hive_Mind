@@ -99,7 +99,7 @@ techs[#techs + 1] =
   },
   unit =
   {
-    count = shared.science.research_packs,
+    count = shared.supremacy.research_packs,
     time = 30,
     ingredients = {{shared.items.pollution_science_pack, 1}}
   }

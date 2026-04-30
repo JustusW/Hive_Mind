@@ -24,4 +24,12 @@ $factorioRoot = Get-FactorioRoot -RequestedPath $FactorioRoot
 $factorioExe = Get-FactorioExePath -FactorioRoot $factorioRoot
 $configPath = Get-DefaultDevConfigPath -ProfileName $profileName
 
-& $factorioExe --config $configPath --mod-directory $ModsPath --dump-data --disable-audio
+# Use Start-Process -PassThru so we can read ExitCode reliably under
+# Set-StrictMode -Version Latest, where touching an unset $LASTEXITCODE throws.
+$proc = Start-Process `
+  -FilePath $factorioExe `
+  -ArgumentList @("--config", $configPath, "--mod-directory", $ModsPath, "--dump-data", "--disable-audio") `
+  -NoNewWindow `
+  -Wait `
+  -PassThru
+exit $proc.ExitCode

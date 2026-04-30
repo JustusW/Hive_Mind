@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.1
+Date: 2026-04-30
+  Bugfixes:
+    - 0.8.0 failed to load: hm-hive-supremacy tech read shared.science.research_packs (nil); Factorio then required count_formula. Fixed to read shared.supremacy.research_packs.
+    - tools/check-load.ps1 now propagates Factorio's exit code so failed prototype loads actually break the build pipeline instead of silently shipping a broken zip.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.0
 Date: 2026-04-30
   Major:
