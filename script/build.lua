@@ -1,13 +1,20 @@
 -- Build pipeline: ghost fulfilment, direct placement, and proxy → real swap.
 --
--- Two placement paths:
+-- Every build (except the hive itself) is animated by a hive worker walking
+-- out of the nearest hive. There are three entry points:
 --
---   1. Player places a hive item directly  → on_built_entity (charge inline)
---   2. Player places a ghost (any kind)    → on_built_entity → fulfill_ghost
---      → cost charged, ghost queued in Workers; a unit walks to the ghost
---      and surface.create_entity{raise_built = true} fires script_raised_built,
---      which re-enters this handler with player_index = nil so cost-path
---      branches no-op.
+--   1. Player places a hive item directly → on_built_entity → the entity is
+--      charged, the cursor item is refunded, the entity is destroyed and
+--      replaced with an entity-ghost at the same spot, then queued in
+--      Workers (charge_and_ghostify). The hive itself is the exception —
+--      it is built directly because no workers exist before the first hive
+--      lands.
+--   2. Player places a ghost (any kind) → on_built_entity → fulfill_ghost
+--      runs tech / obstruction / consume guards and queues the ghost.
+--   3. A worker materialises a queued ghost via
+--      surface.create_entity{raise_built = true}. script_raised_built
+--      re-enters this handler with player_index = nil, which routes to the
+--      tracking / proxy-swap path without re-charging.
 --
 -- "Proxy" entities are placeholder prototypes whose only job is to be swapped
 -- for an enemy-force real entity (biter spawner, worm turret) once placed.
@@ -173,12 +180,14 @@ end
 -- Charge-or-refund flow for a direct hive-item placement. On failure: print
 -- the localised message, refund the player's item, destroy `entity`, return
 -- false. On success: return true.
--- Charge pollution for the placement at `entity.position` and either refund
--- the item back to the cursor (success) or refund + destroy (failure).
--- Hive recipes are zero-ingredient: the actual cost is the pollution just
--- paid, so the cursor item is really a placement tool. Refunding on success
--- keeps the player from running dry mid-row and accidentally placing ghosts.
-local function charge_or_refund(entity, player_index, refund_item_name)
+-- Charge the network for a player-placed entity. On failure: print, refund
+-- the cursor item, destroy the entity. On success: refund the cursor item
+-- AND replace the real entity with an entity-ghost at the same position,
+-- then queue the ghost so a worker walks over and materialises it. Direct
+-- placement and ghost placement therefore converge: every build is animated
+-- by a worker out of the nearest hive. Hive recipes are zero-ingredient, so
+-- the cursor item is really a placement tool; the actual cost is pollution.
+local function charge_and_ghostify(entity, player_index, refund_item_name)
   local ok, reason, info = Cost.charge_build(entity.surface, entity.position, entity.name)
   if not ok then
     Cost.print_charge_failure(player_index, reason, info)
@@ -187,6 +196,22 @@ local function charge_or_refund(entity, player_index, refund_item_name)
     return false
   end
   Cost.refund_player_item(player_index, refund_item_name)
+
+  local entity_name = entity.name
+  local position    = {x = entity.position.x, y = entity.position.y}
+  local surface     = entity.surface
+  local force       = entity.force
+  entity.destroy()
+  local ghost = surface.create_entity{
+    name        = "entity-ghost",
+    inner_name  = entity_name,
+    position    = position,
+    force       = force,
+    raise_built = false
+  }
+  if ghost and ghost.valid then
+    Workers.queue(ghost, player_index)
+  end
   return true
 end
 
@@ -215,62 +240,56 @@ function M.on_built(event)
   if not (entity and entity.valid) then return end
   local player_index = event.player_index
 
-  -- Obstruction guard for direct player placements. Ghosts go through
-  -- fulfill_ghost which has its own guard. Script-raised builds (worker
-  -- materialisation) skip the guard — the originating ghost was already
-  -- vetted and we don't want to re-refuse our own materialisation.
-  if entity.type ~= "entity-ghost"
-     and player_index
-     and placement_obstructed(entity) then
-    refuse_obstructed_placement(entity, player_index)
+  -- Ghost placements run their own pipeline.
+  if entity.type == "entity-ghost" then
+    fulfill_ghost(entity, player_index)
     return
   end
 
-  if entity.name == shared.entities.hive then
-    on_hive_placed(entity, player_index)
-    if player_index then
-      Cost.refund_player_item(player_index, shared.items.hive)
-    end
-    return
-  end
-
-  if entity.name == shared.entities.hive_node then
-    if player_index and not charge_or_refund(entity, player_index, shared.items.hive_node) then
+  if player_index then
+    -- Player direct-placement.
+    if placement_obstructed(entity) then
+      refuse_obstructed_placement(entity, player_index)
       return
     end
+
+    -- The hive is the foundational structure: built directly because no
+    -- workers exist before the first hive lands. Everything else is
+    -- replaced with a ghost so a worker walks out of the nearest hive
+    -- and materialises it.
+    if entity.name == shared.entities.hive then
+      on_hive_placed(entity, player_index)
+      Cost.refund_player_item(player_index, shared.items.hive)
+      return
+    end
+
+    local refund_item = placed_entity_item(entity.name)
+    if refund_item then
+      charge_and_ghostify(entity, player_index, refund_item)
+    end
+    return
+  end
+
+  -- Script-raised path: a worker just materialised this entity. Run the
+  -- tracking / proxy-swap that the engine event delivers without re-running
+  -- charge or refund (those happened when the player originally placed).
+  if entity.name == shared.entities.hive then
+    on_hive_placed(entity, nil)
+    return
+  end
+  if entity.name == shared.entities.hive_node then
     Hive.track_node(entity)
     Hive.chart(entity, shared.ranges.hive_node)
     return
   end
-
-  if entity.name == shared.entities.hive_lab then
-    if player_index then
-      charge_or_refund(entity, player_index, shared.items.hive_lab)
-    end
-    return
-  end
-
-  -- Spawner / worm proxy placed directly: charge, swap, done.
-  local real_name = proxy_real_name(entity.name)
-  if real_name then
-    if player_index then
-      local refund = shared.ghost_items[entity.name] or entity.name
-      if not charge_or_refund(entity, player_index, refund) then return end
-    end
-    swap_proxy_for_real(entity, real_name, Force.get_enemy())
-    return
-  end
-
   if entity.name == shared.entities.pollution_generator then
     State.get().pollution_generators[entity.unit_number] = entity
-    if player_index then
-      Cost.refund_player_item(player_index, shared.items.pollution_generator)
-    end
     return
   end
-
-  if entity.type == "entity-ghost" then
-    fulfill_ghost(entity, player_index)
+  -- Spawner / worm / spitter-spawner proxy → real swap.
+  local real_name = proxy_real_name(entity.name)
+  if real_name then
+    swap_proxy_for_real(entity, real_name, Force.get_enemy())
     return
   end
 end
