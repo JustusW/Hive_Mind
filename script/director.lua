@@ -12,6 +12,7 @@ local State     = require("script.state")
 local Force     = require("script.force")
 local Hive      = require("script.hive")
 local Creatures = require("script.creatures")
+local Anchor    = require("script.anchor")
 
 local M = {}
 
@@ -199,7 +200,6 @@ function M.join(player)
   -- Hand out the starter hive item. Idempotent: subsequent calls are no-ops
   -- as long as the player has any path to a hive (item / entity / pending
   -- construction).
-  local Anchor = require("script.anchor")
   Anchor.ensure_hive_available(player)
   player.print({"gui.hm-hive-joined"})
 end

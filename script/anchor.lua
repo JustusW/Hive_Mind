@@ -30,6 +30,7 @@
 
 local shared = require("shared")
 local State  = require("script.state")
+local Hive   = require("script.hive")
 
 local M = {}
 
@@ -170,9 +171,6 @@ function M.tick()
   end
 
   if not to_finish then return end
-  -- Resolve hive_record via the Hive module to avoid a circular require at
-  -- module load time.
-  local Hive = require("script.hive")
   for _, unit_number in ipairs(to_finish) do
     local record = s.pending_anchor_constructions[unit_number]
     if record then

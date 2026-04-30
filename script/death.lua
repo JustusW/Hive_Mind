@@ -9,6 +9,7 @@ local Force   = require("script.force")
 local Hive    = require("script.hive")
 local Network = require("script.network")
 local Vent    = require("script.vent")
+local Anchor  = require("script.anchor")
 
 local M = {}
 
@@ -266,7 +267,6 @@ function M.on_removed(event)
     -- player who lost their last hive. The grant is idempotent — players
     -- who still have a hive get nothing.
     State.get().pending_anchor_constructions[entity.unit_number] = nil
-    local Anchor = require("script.anchor")
     for player_index in pairs(State.get().joined_players) do
       Anchor.ensure_hive_available(game.get_player(player_index))
     end

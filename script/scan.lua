@@ -17,6 +17,7 @@ local Hive      = require("script.hive")
 local Creatures = require("script.creatures")
 local Telemetry = require("script.telemetry")
 local Vent      = require("script.vent")
+local Anchor    = require("script.anchor")
 
 local M = {}
 
@@ -68,9 +69,6 @@ function M.tick(tick)
   -- Anchor 30s construction: skip recruit + absorb for any hive whose
   -- storage record still has a building_until_tick in the future. The hive
   -- is inert during construction.
-  local Anchor = require("script.anchor")
-  local Hive   = require("script.hive")
-
   for i = 0, per_tick - 1 do
     local idx = (s.scan_cursor + i) % N + 1
     local m = members[idx]
