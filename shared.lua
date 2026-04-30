@@ -90,11 +90,12 @@ end
 -- `hive` and `hive_node` are construction / visibility radii (used by roboport
 -- prototype + chart_area). `recruit` is the long-range scan for absorbable units.
 -- All values are radii (half-extents). A radius of 50 gives a 100x100 box.
+-- Each hive and each hive node also recruits within its own range, scaled
+-- by the hm-attraction-reach tech (see script/creatures.lua).
 shared.ranges =
 {
-  hive      = 50,    -- 100x100 build/visibility box
-  hive_node = 25,    -- 50x50 build/visibility box
-  recruit   = 50     -- 100x100 base attraction box; scaled by hm-attraction-reach
+  hive      = 50,    -- 100x100 build / visibility / recruit box
+  hive_node = 25     -- 50x50  build / visibility / recruit box
 }
 
 shared.intervals =

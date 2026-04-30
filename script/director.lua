@@ -276,14 +276,25 @@ end
 
 -- ── Deconstruction lockdown ──────────────────────────────────────────────────
 
+-- The hive does not deconstruct. Cancel any deconstruction order keyed to
+-- the hive force regardless of how it got there: a hive player pressing the
+-- decon shortcut, or the engine auto-marking a tree when a director ghosts a
+-- building on top of it. Player-initiated marks also get the explanatory
+-- chat message; engine-driven marks (no player_index) are just cancelled
+-- silently so the player isn't spammed during routine placement.
 function M.on_marked_for_deconstruction(event)
-  local player = event.player_index and game.get_player(event.player_index)
-  if not M.is_player(player) then return end
   local entity = event.entity
-  if entity and entity.valid then
-    entity.cancel_deconstruction(entity.force, player)
+  if not (entity and entity.valid) then return end
+  local hive_force = Force.get_hive()
+  if hive_force then
+    entity.cancel_deconstruction(hive_force)
   end
-  if player then player.print({"message.hm-no-deconstruction"}) end
+  if event.player_index then
+    local player = game.get_player(event.player_index)
+    if M.is_player(player) then
+      player.print({"message.hm-no-deconstruction"})
+    end
+  end
 end
 
 -- ── Player lifecycle ─────────────────────────────────────────────────────────

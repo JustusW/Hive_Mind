@@ -96,59 +96,117 @@ end
 
 -- ── Recruitment ──────────────────────────────────────────────────────────────
 
--- Effective recruitment radius for `force`, scaled by completed levels of
--- the infinite hm-attraction-reach tech. `tech.level` is the next level to
+-- Multiplier on the base recruit radius from completed levels of the
+-- infinite hm-attraction-reach tech. `tech.level` is the next level to
 -- research, so completed levels = level - 1 (clamped at zero).
-local function recruit_radius(force)
-  local base = shared.ranges.recruit
-  if not (force and force.valid) then return base end
+local function reach_factor(force)
+  if not (force and force.valid) then return 1 end
   local tech = force.technologies[shared.technologies.attraction_reach]
-  if not tech then return base end
+  if not tech then return 1 end
   local completed = tech.level - 1
   if completed < 0 then completed = 0 end
-  return base * (1 + completed * shared.attraction_reach_step)
+  return 1 + completed * shared.attraction_reach_step
 end
 
--- Long-range scan from each player's primary hive: reassign vanilla biters
--- to the hive force and command them toward the hive. If the player carries
--- a pheromone item they become the recruitment target instead.
-function M.tick_recruitment()
-  local s            = State.get()
-  local enemy_force  = Force.get_enemy()
-  local hive_force   = Force.get_hive()
-  local radius       = recruit_radius(hive_force)
-
-  for player_index in pairs(s.joined_players) do
-    local player = game.get_player(player_index)
-    if not (player and player.valid) then goto continue end
-
-    local hive = Hive.get_primary(player_index)
-    if not hive then goto continue end
-
-    local has_pheromones = false
-    local inv = player.get_main_inventory()
-    if inv then has_pheromones = inv.get_item_count(shared.items.pheromones) > 0 end
-
-    local units = hive.surface.find_entities_filtered{
-      position = hive.position, radius = radius, type = "unit"
-    }
-    for _, unit in pairs(units) do
-      if unit.valid
-         and (unit.force == enemy_force or unit.force == hive_force)
-         and M.is_for_role(unit, shared.creature_roles.attract) then
-        if unit.force == enemy_force then unit.force = hive_force end
-        local commandable = unit.commandable
-        if commandable then
-          if has_pheromones then
-            command_unit_to_position(unit, player.position)
-          else
-            command_unit_to_entity(unit, hive)
-          end
-        end
+-- Closest hive on the same surface as `entity`, or nil if there are none.
+-- Used to redirect units recruited from a node (which has no chest) toward
+-- a hive where they can actually be absorbed.
+local function nearest_hive_on_surface(entity, hives)
+  local best, best_dist
+  for _, h in pairs(hives) do
+    if h.valid and h.surface == entity.surface then
+      local dx = h.position.x - entity.position.x
+      local dy = h.position.y - entity.position.y
+      local d2 = dx * dx + dy * dy
+      if not best_dist or d2 < best_dist then
+        best_dist = d2
+        best = h
       end
     end
+  end
+  return best
+end
 
-    ::continue::
+-- Recruit (and reassign) any eligible units inside `radius` of `recruiter`,
+-- commanding each toward `target`. `target` is either an entity (walked to
+-- via go_to_location with radius 5) or a position table {position = {...}}
+-- (walked to via go_to_location with radius 1, used for pheromone players).
+local function recruit_around(recruiter, radius, target, enemy_force, hive_force)
+  local units = recruiter.surface.find_entities_filtered{
+    position = recruiter.position, radius = radius, type = "unit"
+  }
+  for _, unit in pairs(units) do
+    if unit.valid
+       and (unit.force == enemy_force or unit.force == hive_force)
+       and M.is_for_role(unit, shared.creature_roles.attract) then
+      if unit.force == enemy_force then unit.force = hive_force end
+      if target.position then
+        command_unit_to_position(unit, target.position)
+      else
+        command_unit_to_entity(unit, target.entity)
+      end
+    end
+  end
+end
+
+-- Recruitment scan: every hive AND every hive node draws eligible units
+-- from its construction box (hives 100×100, nodes 50×50, both scaled by
+-- the Attraction Reach tech). Units recruited from a hive walk to that
+-- hive. Units recruited from a node walk to the nearest hive on the same
+-- surface, since nodes have no chest of their own. A player carrying
+-- pheromones overrides every target — recruited units converge on them
+-- regardless of which recruiter spotted them.
+function M.tick_recruitment()
+  local s           = State.get()
+  local enemy_force = Force.get_enemy()
+  local hive_force  = Force.get_hive()
+  if not (enemy_force and hive_force) then return end
+
+  local factor      = reach_factor(hive_force)
+  local hive_radius = shared.ranges.hive      * factor
+  local node_radius = shared.ranges.hive_node * factor
+
+  -- One pheromone player wins: pick the first one we see that's actually
+  -- holding the lure. Multiplayer with multiple pheromone-carriers is rare
+  -- and the simple choice keeps the per-tick cost bounded.
+  local pheromone_player
+  for player_index in pairs(s.joined_players) do
+    local player = game.get_player(player_index)
+    if player and player.valid then
+      local inv = player.get_main_inventory()
+      if inv and inv.get_item_count(shared.items.pheromones) > 0 then
+        pheromone_player = player
+        break
+      end
+    end
+  end
+
+  local hives = Hive.all()
+
+  -- Hives: target is the hive itself (or the pheromone player if any).
+  for _, hive in pairs(hives) do
+    local target = pheromone_player
+                 and {position = pheromone_player.position}
+                 or  {entity = hive}
+    recruit_around(hive, hive_radius, target, enemy_force, hive_force)
+  end
+
+  -- Nodes: redirect to the nearest hive on the surface, since nodes don't
+  -- absorb. Pheromone player still overrides.
+  for _, node_data in pairs(s.hive_nodes) do
+    local node = node_data.entity
+    if node and node.valid then
+      local target
+      if pheromone_player then
+        target = {position = pheromone_player.position}
+      else
+        local hive = nearest_hive_on_surface(node, hives)
+        if hive then target = {entity = hive} end
+      end
+      if target then
+        recruit_around(node, node_radius, target, enemy_force, hive_force)
+      end
+    end
   end
 end
 

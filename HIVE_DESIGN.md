@@ -67,6 +67,15 @@ Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive stor
 - A "network" is the set of hive + hive-node entities whose construction radii overlap, scoped to the hive force and the same surface.
 - Cost reads and writes treat the union of all member chests as one virtual inventory.
 
+## Recruitment
+
+- `Creatures.tick_recruitment` runs every `shared.intervals.recruit` ticks. It scans for `type == "unit"` entities on the enemy and hive forces around every recruiter on the surface and reassigns matched units to the hive force, then commands them to walk somewhere.
+- A "recruiter" is any hive or hive node. Recruit radius is `shared.ranges.hive * reach_factor` for hives and `shared.ranges.hive_node * reach_factor` for nodes, where `reach_factor = 1 + completed_attraction_reach_levels * shared.attraction_reach_step`.
+- Targeting:
+  - Pheromone player present → unit walks to the player's current position.
+  - Recruited from a hive → unit walks to that hive.
+  - Recruited from a node → unit walks to the nearest hive on the same surface (nodes have no chest, so absorption only happens at hives).
+
 ## Build cost
 
 - `shared.build_costs[entity_name]` is an explicit override table for hive-tier entities.
@@ -85,8 +94,9 @@ Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive stor
 ## Obstruction guard
 
 - The hive does not deconstruct trees, rocks, or cliffs.
-- `placement_obstructed(entity)` runs `surface.find_entities_filtered{ area = entity.bounding_box, type = {"tree", "cliff", "simple-entity"} }` and returns true if anything other than the placed entity sits in the box.
+- `placement_obstructed(entity)` runs `surface.find_entities_filtered{ area = entity.bounding_box, type = {"tree", "cliff", "simple-entity"} }` and returns true if anything other than the placed entity sits in the box. As a side effect it also calls `cancel_deconstruction` on any obstruction the engine had auto-marked for the hive force, otherwise a hive worker would dispatch to chop the tree we just declined to build over and then hover indefinitely (hive storage is a passive-provider chest and won't accept bot inserts).
 - Direct placements are refused before charging (item refunded, entity destroyed, message printed). Ghost placements are refused inside `fulfill_ghost`.
+- `Director.on_marked_for_deconstruction` cancels any deconstruction order keyed to the hive force regardless of whether a player triggered it (hive force never deconstructs).
 
 ## Recipes
 
