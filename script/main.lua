@@ -126,7 +126,9 @@ script.on_event(e.on_gui_click,                     Director.on_gui_click)
 script.on_event(e.on_gui_opened,                    Director.on_gui_opened)
 script.on_event(e.on_player_mined_entity,           Director.on_player_mined_entity)
 script.on_event(e.on_player_mined_item,             Director.on_player_mined_item)
-script.on_event(e.on_marked_for_deconstruction,     Director.on_marked_for_deconstruction)
+-- Deconstruction is blocked at the prototype level via the
+-- "not-deconstructable" flag (data/prototypes/entities.lua → lock_decon).
+-- No script handler needed.
 
 -- Forbidden-inventory clearing (gun / ammo / armor are never allowed).
 local function clear_forbidden(event, inventory_id)

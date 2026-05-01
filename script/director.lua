@@ -284,61 +284,10 @@ function M.restore_mined_entities()
   end
 end
 
--- ── Deconstruction lockdown ──────────────────────────────────────────────────
-
--- The hive does not deconstruct anything it owns. Cancel deconstruction
--- orders on hive-side entities regardless of which force scheduled the
--- mark — multiplayer setups can leave the marking force at `player` or any
--- non-hive force, and `entity.cancel_deconstruction(force)` only undoes
--- marks owned by the supplied force.
---
--- We only intervene when the entity is hive-side (hive force OR a
--- post-swap player-placed enemy entity). Marks on regular player-force
--- buildings are someone else's business and stay untouched.
-local function is_hive_owned(entity, hive_force, enemy_force)
-  if not (entity and entity.valid) then return false end
-  if hive_force and entity.force == hive_force then return true end
-  if enemy_force and entity.force == enemy_force then
-    -- Only player-placed enemy entities are hive-managed; wild nests are
-    -- also enemy-force but we don't care if the player decons those.
-    -- Distinguish by checking if the entity's name matches one of the
-    -- player-placed real names. Cheaper than a state lookup.
-    local n = entity.name
-    if n == "biter-spawner" or n == "spitter-spawner" then return true end
-    if n:find("worm%-turret$") then return true end
-  end
-  return false
-end
-
-function M.on_marked_for_deconstruction(event)
-  local entity = event.entity
-  if not (entity and entity.valid) then return end
-  local hive_force  = Force.get_hive()
-  local enemy_force = Force.get_enemy()
-
-  if not is_hive_owned(entity, hive_force, enemy_force) then return end
-
-  -- Cancel for every force that could have scheduled the mark. Iterating
-  -- game.forces is cheap (a handful of forces in any save) and lets us
-  -- handle multiplayer where a non-hive player on `player` (or any other
-  -- force) tries to decon a hive-side entity.
-  --
-  -- pcall: Factorio 2.0 raises if `force` is not allowed to cancel the
-  -- mark on this specific entity (e.g. calling cancel_deconstruction(player)
-  -- on a hivemind-force entity that has no player-scheduled mark). The
-  -- raise is benign — it just means that force had nothing to cancel — so
-  -- swallow it and keep iterating.
-  for _, force in pairs(game.forces) do
-    pcall(entity.cancel_deconstruction, entity, force)
-  end
-
-  if event.player_index then
-    local player = game.get_player(event.player_index)
-    if M.is_player(player) then
-      player.print({"message.hm-no-deconstruction"})
-    end
-  end
-end
+-- Deconstruction lockdown is handled at the prototype level via the
+-- "not-deconstructable" flag on every hive-side entity (see
+-- data/prototypes/entities.lua → lock_decon). The engine refuses the mark
+-- up front, so no on_marked_for_deconstruction handler is needed.
 
 -- ── Player lifecycle ─────────────────────────────────────────────────────────
 

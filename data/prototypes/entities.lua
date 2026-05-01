@@ -26,6 +26,24 @@ local function hide_sprite(t)
   tint_sprite(t, invisible_tint)
 end
 
+-- Append a flag to a prototype's flag list without clobbering whatever the
+-- source prototype already had. Idempotent.
+local function add_flag(proto, flag)
+  proto.flags = proto.flags or {}
+  for _, existing in ipairs(proto.flags) do
+    if existing == flag then return end
+  end
+  table.insert(proto.flags, flag)
+end
+
+-- Hive-side entities should never be deconstructable. The decision lives at
+-- the prototype level so the engine refuses the mark up front instead of
+-- racing a script handler. Mining is independently controlled by the
+-- director permission group + entity.minable.
+local function lock_decon(proto)
+  add_flag(proto, "not-deconstructable")
+end
+
 -- ── Source prototypes ─────────────────────────────────────────────────────────
 
 local spawner_proto  = data.raw["unit-spawner"]["biter-spawner"]
@@ -130,6 +148,7 @@ hide_sprite(hive.door_animation_down)
 hide_sprite(hive.recharging_animation)
 hive.recharging_light      = nil
 hive.base_animation        = gleba_spawner_anim(2.0)
+lock_decon(hive)
 
 -- ── Hive Node ─────────────────────────────────────────────────────────────────
 -- Footprint matches the rendered graphic (Space Age small Pentapod spawner)
@@ -175,6 +194,7 @@ hive_node.recharging_light      = nil
 hive_node.base_animation        = space_age_assets.gleba_spawner_small_animation()
 hive_node.collision_box         = hive_node_collision
 hive_node.selection_box         = hive_node_selection
+lock_decon(hive_node)
 
 -- ── Pheromone Vent ───────────────────────────────────────────────────────────
 -- A recoloured Hive Node that diverts the network's incoming biter stream to
@@ -213,6 +233,7 @@ do
   tint_sprite(anim, pheromone_vent_tint)
   pheromone_vent.base_animation      = anim
 end
+lock_decon(pheromone_vent)
 
 -- ── Hive Lab ──────────────────────────────────────────────────────────────────
 -- Footprint matches the biolab graphic rather than the vanilla 3×3 lab box.
@@ -242,6 +263,7 @@ if hive_lab.working_visualisations then hive_lab.working_visualisations = nil en
 if hive_lab.light                  then hive_lab.light = nil end
 hive_lab.collision_box        = hive_lab_collision
 hive_lab.selection_box        = hive_lab_selection
+lock_decon(hive_lab)
 
 -- ── Hive Worker ───────────────────────────────────────────────────────────────
 -- A unit commanded by the script-side dispatcher in script/workers.lua. It
@@ -300,6 +322,7 @@ pollution_gen.icon                  = spawner_proto.icon
 pollution_gen.icon_size             = spawner_proto.icon_size
 pollution_gen.icons                 = nil
 tint_sprite(pollution_gen.picture, {r = 0.9, g = 0.2, b = 0.0, a = 1})
+lock_decon(pollution_gen)
 
 -- ── Spawner / Worm proxy ghosts ───────────────────────────────────────────────
 -- god-controller can't place unit-spawner / turret entities directly on the
