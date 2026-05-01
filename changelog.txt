@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.24
+Date: 2026-05-01
+  Optimisations:
+    - Hive Lab supply tick no longer scans every surface. Labs are tracked when built and cached; the per-second supply pass walks the cached list instead of running find_entities_filtered per surface every tick. Significant win on Space Age multi-surface saves where the previous scan was visiting Nauvis, Vulcanus, Fulgora, etc. every tick.
+    - Network member list cached. The unified per-member scan dispatcher previously rebuilt and re-sorted its full hive+node list every tick; now it appends on build, drops on destroy, and reuses the sorted list. Removes a per-tick table allocation and an O(N log N) sort on every dispatch.
+    - Per-member network resolution cached. Every recruit scan was re-resolving the network at each member's position; the resolution walks the overlap graph and isn't free. Now memoised by member unit_number, invalidated only when a hive or node is built / destroyed / promoted. Biggest visible win on networks with many hives and nodes. Enemy biter expansion landing inside the network's bbox does NOT invalidate the cache — network identity is purely hive-side.
+    - Storage invariant: networks now hold a single chest at the primary hive (smallest unit_number), not one chest per hive. Earlier versions kept N effectively-empty chests per network; every pollution-capacity, item-count, and creature-conversion read walked all of them. Aggregations now read one inventory. Existing saves are migrated on first load: duplicate chests are drained into the primary and destroyed; no contents are lost.
+    - Reconciler watchdog. A slow rotating audit catches any cache drift caused by a future code path that mutates state without firing the right invalidation event. One cache verified every ~10 seconds, full cycle ~50 seconds. Pure safety net; quiet by default. Drift surfaces as a [reconcile] line in the telemetry log when "Debug telemetry log" is enabled.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.23
 Date: 2026-05-01
   Bugfixes:
