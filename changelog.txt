@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.21
+Date: 2026-05-01
+  Changes:
+    - Pollution display moved from a floating label above each hive to a per-player GUI element in the top bar, alongside the hive buttons. The top-bar read-out uses the heading-1 font (~2x the previous text size) and is recoloured green/amber/red on the same thresholds as before. Cleaner hive sprite, larger and easier-to-read value, and significantly less multiplayer sync traffic since per-player GUI elements only sync to the owning client (the previous render-object label was world-state and broadcast to every client every tick window). Existing saves have their orphan render-object label IDs cleaned up automatically on first load.
+  Optimisations:
+    - Pollution read-out is now dirty-checked on its value and color band; unchanged frames don't touch the GUI at all.
+    - Extended telemetry coverage. Every per-tick handler and every event handler is now wrapped in Telemetry.measure (visible in the [perf] line when "Debug telemetry log" is enabled). Helps diagnose lag spikes that were previously invisible because the relevant code path wasn't being timed.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.20
 Date: 2026-05-01
   Major Features:
