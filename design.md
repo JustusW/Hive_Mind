@@ -312,7 +312,7 @@ When `hm-hive-supremacy` is researched, a damage tick inflicts damage on anythin
 
 ## Telemetry
 
-Two log lines, both gated on the `hm-debug-telemetry` startup setting (default **off**), written to `script-output/hm-debug.txt`. The setting is read via `shared.feature_enabled("hm-debug-telemetry")` at flush time so end users get a quiet save folder by default; turn it on for tuning sessions.
+Two log lines, both gated on the `hm-debug-telemetry` **runtime-global** setting (default **off**), written to `script-output/hm-debug.txt`. The setting is read via `shared.feature_enabled("hm-debug-telemetry")` at flush time. Runtime-global instead of startup so it can be toggled mid-session — useful for catching transient lag spikes without restarting the world. End users get a quiet save folder by default; flip it on in Mod settings → Runtime when tuning.
 
 ```
 [recruit] tick=N networks=K tokens=[t1,t2,...] R=[r1,r2,...] spawners=[s1,s2,...] group=G trickle=T skipped=S

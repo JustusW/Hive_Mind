@@ -325,13 +325,19 @@ function shared.creature_item_name(unit_name)
   return shared.creature_item_prefix .. unit_name
 end
 
--- Read a startup boolean. Defaults to false if the setting is not declared
--- (e.g. a stripped-down test environment). Cheap; no caching needed.
+-- Read a boolean setting. Tries startup first, then runtime-global. The
+-- caller doesn't need to know the setting_type; this function returns
+-- false either if the setting isn't declared at all or if it's off.
+-- Cheap; no caching needed (one or two table lookups per call).
 function shared.feature_enabled(name)
-  if not (settings and settings.startup) then return false end
-  local s = settings.startup[name]
-  if not s then return false end
-  return s.value == true
+  if not settings then return false end
+  if settings.startup and settings.startup[name] then
+    return settings.startup[name].value == true
+  end
+  if settings.global and settings.global[name] then
+    return settings.global[name].value == true
+  end
+  return false
 end
 
 function shared.creature_unit_name(item_name)
