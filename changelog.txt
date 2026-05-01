@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.20
+Date: 2026-05-01
+  Major Features:
+    - New startup setting "Debug telemetry log" (default off). When enabled, the mod writes [perf] / [recruit] / [supremacy] tuning lines to script-output/hm-debug.txt. Disabled by default so end users get a quiet save folder; turn on if you're tuning the mod.
+  Optimisations:
+    - Creep growth no longer pays per-tick cost on settled hives. Once a hive or node has filled its extension ring (creep_layer > max_radius + 1) its slot in the every-3-ticks Creep.tick loop short-circuits.
+    - Per-creature pollution value lookup is now memoised by unit name. The function reads prototypes.entity[name].absorptions_to_join_attack.pollution and is called inside the convert-creatures and pollution-capacity loops on every charge; the prototype data doesn't change at runtime so a session-lifetime cache is safe.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.19
 Date: 2026-05-01
   Bugfixes:
