@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.22
+Date: 2026-05-01
+  Optimisations:
+    - Telemetry timing now uses helpers.create_profiler (nanosecond precision) instead of os.clock (15 ms granularity on Windows). The previous timer reported every category as 0.000 ms even when the mod was using significant CPU time per tick because each individual measure call was below the clock's resolution. The new timing accumulates correctly across all calls within a flush window. The [perf] line format is unchanged in shape but the per-category value is now rendered by Factorio's built-in profiler formatter (e.g. "145.872 ms" or "32.451 µs") so the unit varies per column.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.21
 Date: 2026-05-01
   Changes:
