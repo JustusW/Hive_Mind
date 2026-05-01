@@ -124,6 +124,7 @@ $includes = @(
   "data.lua",
   "data-updates.lua",
   "control.lua",
+  "settings.lua",
   "shared.lua",
   "changelog.txt",
   "readme.md",
