@@ -1,4 +1,19 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.17
+Date: 2026-05-01
+  Major Features:
+    - Hive Anchor Binding (startup setting, default off): the hive becomes a permanent commitment. Each player gets exactly one Hive item on join (no recipe), placement triggers a 30-second construction window with a binding warning, and the hive is non-minable after construction. Additional hives only exist via the new Promote Node action. The hive force is endless: when every hive in the network dies the network collapses and the player receives a fresh starter Hive item to plant elsewhere.
+    - Hive Evolution Gate (startup setting, default off): node placement is paced by enemy evolution. The Nth Hive Node in a network requires evolution ≥ (N - 1) × 0.05, so the engineer's pollution and nest kills self-pace your expansion. Nodes only — hives (anchor + promoted) do not count toward the limit.
+    - Promote Node: new recipe (auto-unlocks alongside Hive Spawners). Crafting consumes a marker and converts the closest Hive Node within 20 tiles of you into a Hive at the same position. Costs 1000 pollution from the network. Promoted hives share the network's storage and do not count against the evolution gate.
+    - Pheromones reworked into a single-shot burst. Release Pheromones is now fire-and-forget: crafting it locks a temporary attractor at your position; recruited and disgorged biters divert there until X arrive (X = a default-mode Pheromone Vent's attack-group size, scaled by Attack Group Size tech), then they form an engine-routed attack group and disperse. Re-craft cancels the previous gather; re-craft after dispatch is fine. The Withdraw Pheromones recipe is gone — the burst is bounded.
+    - Shared storage. Every hive in a network now shares one chest at the runtime level: absorption inserts and the GUI click both route to the network's primary chest (the smallest-unit_number hive's chest). Clicking any hive or hive node opens the same inventory. On hive death, if any other hive on the network survives, chest contents merge into a survivor instead of disgorging — full network collapse only happens when the LAST hive dies.
+  Changes:
+    - Hive Node footprint shrunk from 4×4 (inherited roboport box) to 3×3, matching the small Pentapod-spawner graphic. Hive Lab grown from 3×3 (vanilla lab box) to 5×5, matching the biolab graphic. Both fall back to hardcoded Space Age sizes when the source prototypes are not present.
+  Bugfixes:
+    - Pheromone burst no longer locks the game with disgorge spam. The disgorge pass now fires exactly once per burst (was once per recruit-scan tick × every hive on the surface, repeatedly dumping all stored creatures). A 30-second hard timeout clears any burst that hasn't reached its target_size, so a burst placed where no biters can reach it can no longer trap recruitment indefinitely. Arrival radius bumped from 3 to 16 to match the attack_area radius the recruited biters are commanded with — bursts now resolve within ~1 second when biters are nearby.
+    - Pheromone burst item is reliably consumed on craft via event.item_stack.clear() instead of a post-delivery inventory search (which raced on the god controller and left stranded items). A defensive one-shot migration sweeps any stranded items left by older builds.
+    - Fixed an on_tick crash ("count must be positive") in the pheromone-item sweep — inv.remove({count = 0}) raises in Factorio 2.0; now guarded with `if n > 0`. Inventory access wrapped in pcall; per-tick scan converted to a one-shot migration.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.16
 Date: 2026-04-30
   Changes:
