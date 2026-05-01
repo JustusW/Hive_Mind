@@ -216,7 +216,7 @@ Priority when picking the destination of a recruited biter:
 - The hive does not deconstruct trees, rocks, or cliffs.
 - `placement_obstructed(entity)` runs `surface.find_entities_filtered{ area = entity.bounding_box, type = {"tree", "cliff", "simple-entity"} }` and returns true if anything other than the placed entity sits in the box. As a side effect it also calls `cancel_deconstruction` on any obstruction the engine had auto-marked for the hive force, otherwise a hive worker would dispatch to chop the tree we just declined to build over and then hover indefinitely (hive storage is a passive-provider chest and won't accept bot inserts).
 - Direct placements are refused before charging (item refunded, entity destroyed, message printed). Ghost placements are refused inside `fulfill_ghost`.
-- `Director.on_marked_for_deconstruction` cancels any deconstruction order keyed to the hive force regardless of whether a player triggered it (hive force never deconstructs).
+- Hive-side entities carry the `"not-deconstructable"` prototype flag (data/prototypes/entities.lua → `lock_decon`), so the engine refuses any deconstruction mark up front. There is no `on_marked_for_deconstruction` handler — the prototype flag is the single mechanism. Earlier versions had a script-side cancel-on-mark loop; it was removed because Factorio 2.0 raises when `cancel_deconstruction(force)` is called for a force that isn't authorised to cancel the mark on that entity, and because the prototype flag is a simpler, race-free contract anyway.
 
 ## Recipes
 
