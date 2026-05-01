@@ -21,8 +21,34 @@ local Anchor    = require("script.anchor")
 
 local M = {}
 
--- Build the deterministic list of network members for this tick.
-local function all_members()
+-- Cached deterministic list of network members.
+--
+-- Built once on first access after invalidation; reused thereafter on a flat
+-- valid-filter pass. Members are sorted by entity.unit_number — but since
+-- unit_numbers are issued monotonically and cache appends happen at build /
+-- promote time, an "add" always lands at the tail of an already-sorted list.
+-- Removals filter in place. So the list stays sorted without ever calling
+-- `table.sort` after the first build.
+--
+-- Invalidation: Hive.invalidate_members_cache(), called from Hive.track,
+-- Hive.untrack, Hive.track_node, Hive.untrack_node, Promote.swap_node_for_hive,
+-- and the lifecycle hooks (on_init, on_configuration_changed). Invalidation
+-- here is module-local to scan.lua; the Hive module exposes a hook so the
+-- mutator (Hive.track etc.) doesn't have to know about scan.
+local cached_members = nil
+
+function M.invalidate_members_cache()
+  cached_members = nil
+end
+
+-- Subscribe to hive-side topology changes (built, destroyed, node built,
+-- node destroyed, promote) so the cache flushes on every event that could
+-- change membership. Hive.on_topology_change runs registered functions
+-- inside Hive.track/untrack/track_node/untrack_node, so by the time a
+-- subsequent Scan.tick fires the cache is already cold.
+Hive.on_topology_change(function() cached_members = nil end)
+
+local function rebuild_members()
   local s = State.get()
   local list = {}
 
@@ -42,6 +68,29 @@ local function all_members()
     return a.entity.unit_number < b.entity.unit_number
   end)
   return list
+end
+
+local function all_members()
+  if cached_members then
+    -- Filter in place. Most ticks every member is still valid and this is a
+    -- straight copy.
+    local fresh = {}
+    for _, m in ipairs(cached_members) do
+      if m and m.entity and m.entity.valid then fresh[#fresh + 1] = m end
+    end
+    cached_members = fresh
+    return cached_members
+  end
+  cached_members = rebuild_members()
+  return cached_members
+end
+
+-- Public read-only view of the cached members list. Used by the reconciler
+-- watchdog to capture the cached state before forcing a rebuild for drift
+-- detection. If the cache is cold this populates it; the reconciler
+-- expects this and the populate-on-peek behaviour matches all_members().
+function M.peek_members()
+  return all_members()
 end
 
 function M.tick(tick)

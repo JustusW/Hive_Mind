@@ -114,7 +114,8 @@ shared.intervals =
   labels    = 30,   -- pollution-display refresh on each hive
   loadout   = 60,   -- inventory + quickbar watchdog for hive directors
   supremacy = 1,    -- creep-damage tick every frame (60 Hz). Anything slower lets vanilla tree regen partially restore between writes and the bar barely moves.
-  scan      = 60    -- unified per-hive scan + telemetry flush cadence (0.9.0)
+  scan      = 60,   -- unified per-hive scan + telemetry flush cadence (0.9.0)
+  reconcile = 600   -- reconciler watchdog cadence (per-cache round-robin)
 }
 
 -- Maximum simultaneously-in-flight workers per hive. Workers are spawned on

@@ -2,9 +2,10 @@
 --
 -- A "network" is the set of hive + hive-node entities whose construction
 -- radii overlap, scoped to a single force and surface. Cost reads/writes
--- treat the union of all member chests as one virtual inventory.
+-- route through the network's primary chest — the only chest in the network
+-- after the storage invariant landed (see design.md → Storage).
 --
--- This module is pure spatial + chest-iteration logic. Pollution arithmetic
+-- This module is pure spatial + chest-routing logic. Pollution arithmetic
 -- and creature-conversion live in cost.lua.
 
 local shared = require("shared")
@@ -12,6 +13,50 @@ local State  = require("script.state")
 local Hive   = require("script.hive")
 
 local M = {}
+
+-- ── Per-member network cache ────────────────────────────────────────────────
+--
+-- `bucket_for_member` (creatures.lua) calls Network.resolve_at on every
+-- recruit, every tick. Resolution walks the full member list and runs a
+-- transitive-closure overlap pass — O(N²) on big networks. The result is
+-- stable as long as no hive-side topology event happens, so cache it.
+--
+-- Important: enemy biter expansion landing inside the bbox does NOT change
+-- network identity. Networks are defined purely by hive-side overlap
+-- (hives + hive_nodes). Expansion only affects the recruit bucket's
+-- spawner_count, which is a different scalar refreshed via a separate
+-- find_entities_filtered{type = "unit-spawner"} per anchor pass.
+--
+-- Invalidation triggers (via Hive.on_topology_change):
+--   * Hive.track / untrack
+--   * Hive.track_node / untrack_node
+--   * Promotion (handled by track for the new hive + untrack_node for the
+--     old node — the topology event fires twice, no extra wiring needed).
+--
+-- The cache also self-heals on a hit by re-validating every member of the
+-- cached network table; if any are stale the entry is dropped and the next
+-- access re-resolves.
+local cached_networks = {}
+
+local function flush_networks_cache()
+  cached_networks = {}
+end
+
+Hive.on_topology_change(flush_networks_cache)
+
+-- Public: drop a single member's cached network without flushing the rest.
+-- Used by callers that detect a stale resolution mid-tick.
+function M.invalidate_member(member)
+  if member and member.valid and member.unit_number then
+    cached_networks[member.unit_number] = nil
+  end
+end
+
+-- Public: drop everything. Hooked into on_init / on_configuration_changed
+-- via Hive.invalidate_caches() in main.lua.
+function M.invalidate_cache()
+  flush_networks_cache()
+end
 
 -- Boxes (not circles) overlap iff their x-extents AND y-extents both
 -- overlap. Hive / node ranges are axis-aligned half-extents, so the right
@@ -106,23 +151,15 @@ function M.hives_for_position(surface, position, reach)
   return (#hives > 0) and hives or nil
 end
 
--- Primary chest for a network. The network as a whole has one shared
--- inventory; the chest the player actually sees is the one belonging to
--- the smallest-unit_number hive in the network. Writes (absorption,
--- disgorge reads) and the GUI click on any hive route here so the player
--- never sees per-hive content splits.
---
--- Reads via the iterating helpers (item_count, pollution_capacity, etc.)
--- still walk every hive, but only the primary's chest holds content — the
--- others are empty by construction — so the sum is correct.
---
--- `hive_or_position` may be a hive entity (resolves the network at that
--- entity's position) or a {surface, position} pair already resolved.
-function M.primary_chest(hive)
-  if not (hive and hive.valid) then return nil end
-  local network = M.resolve_at(hive.surface, hive.position)
+-- Smallest-unit_number hive in `any_member`'s network. Returns nil if
+-- there is no resolved network at the member's position. Used by the
+-- chest-invariant code (one chest per network, owned by the primary) and
+-- by primary_chest.
+function M.primary_hive(any_member)
+  if not (any_member and any_member.valid) then return nil end
+  local network = M.resolve_at(any_member.surface, any_member.position)
   if not network or not network.hives or #network.hives == 0 then
-    return Hive.get_chest(hive)
+    return any_member.name == shared.entities.hive and any_member or nil
   end
   local primary, primary_id
   for _, h in pairs(network.hives) do
@@ -134,8 +171,65 @@ function M.primary_chest(hive)
       end
     end
   end
+  return primary
+end
+
+-- Primary chest for a network. The network has one shared inventory; the
+-- chest the player actually sees is the one belonging to the smallest-
+-- unit_number hive in the network. After the storage invariant landed
+-- (only the primary holds a chest), this is the only chest in the
+-- network. Writes (absorption, disgorge reads) and the GUI click on any
+-- hive route here so the player never sees per-hive content splits.
+--
+-- Reads via the iterating helpers (item_count, pollution_capacity) walk
+-- network.hives but only the primary holds anything, so the sum is correct.
+function M.primary_chest(hive)
+  if not (hive and hive.valid) then return nil end
+  local primary = M.primary_hive(hive)
   if primary then return Hive.get_chest(primary) end
   return Hive.get_chest(hive)
+end
+
+-- Enforce the storage invariant on `any_member`'s network: exactly one
+-- valid chest, owned by the network's primary hive. Called whenever
+-- network topology shifts (hive built, hive destroyed-with-survivor,
+-- promote node → hive). Idempotent.
+--
+-- Behaviour:
+--   1. Resolve the network. If unresolvable (e.g. orphan hive) and the
+--      member is a hive, just ensure it has its own chest (solo network).
+--   2. Find the primary (smallest unit_number hive in the network).
+--   3. Ensure the primary has a chest. If not, create one.
+--   4. Walk the rest of the network's hives. Anything else holding a
+--      chest is a leftover from before the invariant landed (or a network
+--      split that consolidated): drain its contents into the primary's
+--      chest, destroy it, clear its record.chest.
+function M.ensure_chest_at_primary(any_member)
+  if not (any_member and any_member.valid) then return end
+  local network = M.resolve_at(any_member.surface, any_member.position)
+  if not network or not network.hives or #network.hives == 0 then
+    if any_member.name == shared.entities.hive and not Hive.get_chest(any_member) then
+      Hive.create_chest(any_member)
+    end
+    return
+  end
+
+  local primary = M.primary_hive(any_member)
+  if not primary then return end
+
+  if not Hive.get_chest(primary) then
+    Hive.create_chest(primary)
+  end
+
+  for _, h in pairs(network.hives) do
+    if h and h.valid and h ~= primary and Hive.get_chest(h) then
+      Hive.move_chest_contents(h, primary)
+      local old_chest = Hive.get_chest(h)
+      if old_chest and old_chest.valid then old_chest.destroy() end
+      local r = Hive.get_storage(h)
+      if r then r.chest = nil end
+    end
+  end
 end
 
 -- Sum of `item_name` across all chests in `hives`.
@@ -242,6 +336,31 @@ function M.resolve_at(surface, position)
     members = members,
     bbox    = {{x_min, y_min}, {x_max, y_max}}
   }
+end
+
+-- Cached network resolution keyed off `member.unit_number`. Callers that
+-- repeatedly resolve at the same member's position (recruitment scan,
+-- bucket lookup) hit the cache; callers resolving at arbitrary positions
+-- (build placement reach checks, vent placer hive lookup) keep using
+-- resolve_at directly.
+--
+-- On a cache hit, re-validate every member of the cached network table.
+-- If any have become invalid, drop the entry and re-resolve.
+function M.cached_for_member(member)
+  if not (member and member.valid and member.unit_number) then return nil end
+  local key = member.unit_number
+  local cached = cached_networks[key]
+  if cached then
+    local stale = false
+    for _, m in ipairs(cached.members) do
+      if not (m.entity and m.entity.valid) then stale = true; break end
+    end
+    if not stale then return cached end
+    cached_networks[key] = nil
+  end
+  local resolved = M.resolve_at(member.surface, member.position)
+  if resolved then cached_networks[key] = resolved end
+  return resolved
 end
 
 return M

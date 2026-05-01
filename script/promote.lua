@@ -84,8 +84,12 @@ local function swap_node_for_hive(node, player_index)
 
   -- Standard hive setup, mirroring on_hive_placed but without the anchor
   -- construction window. Promoted hives are live the moment they're created.
+  -- Storage invariant: ensure_chest_at_primary creates a chest only if the
+  -- network has none (typical for a fresh promoted hive in a network with
+  -- no other chests, e.g. the first promotion of an isolated node cluster);
+  -- otherwise re-uses the existing primary's chest.
   Hive.track(player_index, hive)
-  Hive.create_chest(hive)
+  Network.ensure_chest_at_primary(hive)
   Hive.chart(hive, shared.ranges.hive)
 
   -- Mark as promoted so the mining handler knows to demote rather than

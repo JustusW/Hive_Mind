@@ -225,7 +225,10 @@ end
 -- (recipe unlocks happen on completion, not on placement).
 local function on_anchor_placed(entity, player_index)
   Hive.track(player_index, entity)
-  Hive.create_chest(entity)
+  -- Storage invariant: at most one chest per network. ensure_chest_at_primary
+  -- creates a chest at the network's primary if none exists, or no-ops if
+  -- the new hive joined a network that already has one.
+  Network.ensure_chest_at_primary(entity)
   Hive.chart(entity, shared.ranges.hive)
   Anchor.start_construction(entity, player_index, Hive.get_storage(entity))
 end
@@ -237,7 +240,7 @@ end
 local function on_legacy_hive_placed(entity, player_index)
   Death.destroy_previous_player_hives(player_index, entity)
   Hive.track(player_index, entity)
-  Hive.create_chest(entity)
+  Network.ensure_chest_at_primary(entity)
   Hive.chart(entity, shared.ranges.hive)
 
   local tech = entity.force.technologies[shared.technologies.hive_spawners]
@@ -369,13 +372,17 @@ function M.on_built(event)
     -- = false to skip this path). Treat as a fully-live hive, no anchor
     -- construction window.
     Hive.track(nil, entity)
-    Hive.create_chest(entity)
+    Network.ensure_chest_at_primary(entity)
     Hive.chart(entity, shared.ranges.hive)
     return
   end
   if entity.name == shared.entities.hive_node then
     Hive.track_node(entity)
     Hive.chart(entity, shared.ranges.hive_node)
+    return
+  end
+  if entity.name == shared.entities.hive_lab then
+    Hive.track_lab(entity)
     return
   end
   if entity.name == shared.entities.pollution_generator then

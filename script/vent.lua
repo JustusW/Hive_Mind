@@ -10,7 +10,11 @@
 -- destroys the vent on the spot; placer-hive-loss orphans the vent (handled
 -- by the network-collapse pass).
 --
--- Default mode only in v1; mode markers are TODO.
+-- Modes (small / default / large) ship as marker recipes
+-- `hm-pheromone-mode-{small,default,large}`. Crafting one consumes the
+-- marker and writes the player's chosen mode onto the targeted vent.
+-- The mode multiplies `attack_group_size_for(vent)` via
+-- `pheromone_vent.mode_factor` (see shared.lua).
 --
 -- Lifecycle:
 --   Vent.on_built(entity, player_index)  → register or kill on hiveless

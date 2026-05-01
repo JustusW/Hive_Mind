@@ -321,4 +321,26 @@ function M.flush_perf(tick)
   -- cache_size is a snapshot, set by Supremacy.tick on each pass; leave it.
 end
 
+-- Reconciler drift logger. Writes a single line to hm-debug.txt (gated on
+-- the same hm-debug-telemetry runtime setting as the perf line). The
+-- watchdog calls this only when drift is non-zero, so a quiet log means
+-- the event-driven invalidations are doing their job.
+--
+-- Format:
+--   [reconcile] tick=N cache=<name> add=A drop=D
+--   [reconcile] tick=N cache=<name> error=<message>      (probe raised)
+function M.log_reconcile(name, add, drop, err)
+  if not shared.feature_enabled("hm-debug-telemetry") then return end
+  local tick = (game and game.tick) or 0
+  local line
+  if err then
+    line = string.format("[reconcile] tick=%d cache=%s error=%s\n",
+                         tick, tostring(name), tostring(err))
+  else
+    line = string.format("[reconcile] tick=%d cache=%s add=%d drop=%d\n",
+                         tick, tostring(name), add or 0, drop or 0)
+  end
+  helpers.write_file("hm-debug.txt", line, true)
+end
+
 return M

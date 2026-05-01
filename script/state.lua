@@ -6,9 +6,11 @@
 --   hives_by_player      [player_index][unit_number] = {entity}
 --   hive_nodes           [unit_number]               = {entity, creep_layer, creep_step}
 --   hive_storage         [unit_number]               = {entity, chest, creep_layer, creep_step}
+--   hive_labs            [unit_number]               = {entity}
 --   pollution_generators [unit_number]               = entity
 --   hive_roles           [entity_name][role]         = true
 --   scan_cursor          number (rotating index for the unified scan, 0.9.0)
+--   reconcile_cursor     number (round-robin index over registered caches; reconciler watchdog)
 --   supremacy_candidates [member_unit_number] = { last_scan_tick, entries[entity_unit_number] = {...} }
 --   recruit_buckets      [network_key]        = { tokens, last_tick, spawner_count, spawner_count_tick }
 --   pheromone_vents      [unit_number]        = { entity, placer_player_index, gather_count, seen_units, mode }
@@ -33,6 +35,7 @@ function M.get()
       hives_by_player      = {},
       hive_nodes           = {},
       hive_storage         = {},
+      hive_labs            = {},
       pollution_generators = {},
       hive_roles           = {}
     }
@@ -46,7 +49,9 @@ function M.get()
   if not state.hives_by_player       then state.hives_by_player       = {} end
   if not state.hive_nodes            then state.hive_nodes            = {} end
   if not state.hive_storage          then state.hive_storage          = {} end
-  if state.scan_cursor               == nil then state.scan_cursor    = 0  end
+  if not state.hive_labs             then state.hive_labs             = {} end
+  if state.scan_cursor               == nil then state.scan_cursor      = 0  end
+  if state.reconcile_cursor          == nil then state.reconcile_cursor = 0  end
   if not state.supremacy_candidates  then state.supremacy_candidates  = {} end
   if not state.recruit_buckets       then state.recruit_buckets       = {} end
   if not state.pheromone_vents       then state.pheromone_vents       = {} end

@@ -70,18 +70,25 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 
 ## Storage
 
-- Each hive owns an `hm-hive-storage` passive-provider chest, spawned adjacent on hive placement. Visually a tinted spawner — no chest sprite.
+- Invariant: **at most one `hm-hive-storage` chest per network**, owned by the network's primary hive (smallest `unit_number` among the network's hives). Non-primary hives do not have chests. Earlier versions kept one chest per hive with all-but-primary always empty by construction; that wasted iteration in `Network.item_count`, `Cost.pollution_capacity`, `Cost.convert_creatures`, and forced `Network.primary_chest` to fan out across N empty chests on every aggregation.
 - The chest holds:
   - `hm-creature-<unit-name>` items — one per absorbed unit, hidden.
   - `hm-pollution` items — hidden currency, stack 10000.
 - Chest is `not-blueprintable` and `not-deconstructable`. Inspectable but not meant to be managed.
-- On hive death the chest's creature contents are first respawned as living units on the hive force, then the chest is destroyed. Any pollution overflow is discarded.
-- On `on_configuration_changed`, missing chests are recreated.
+- Visually a tinted spawner — no chest sprite.
+- Chest re-homing on primary change:
+  - **New hive added to an existing network**: do NOT create a chest. If the new hive becomes the network's primary (its `unit_number` is smaller than the current primary's), the chest is re-homed by `Network.ensure_chest_at_primary(any_member)`, which is the public entry point for enforcing the invariant. Internally it walks the network's hives, drains every non-primary chest into the primary's via `Hive.move_chest_contents`, and destroys the old chests.
+  - **New isolated hive (no network)**: create a chest at it.
+  - **Hive death, survivor exists**: if the dying hive was the primary, pick the new primary among survivors and re-home the chest. If the dying hive was non-primary, no chest action — there was none.
+  - **Hive death, no survivor**: existing release-and-collapse path (chest contents respawn as live units, chest destroyed).
+  - **Promote node → hive**: same as "new hive added"; usually doesn't change the primary because new hives get high unit_numbers, but handle the rare case symmetrically.
+- Network split via bridge death: if a `hive_node` death splits the network into disjoint fragments, the fragment containing the existing chest keeps it; any orphaned fragment with hives but no chest is detected and gets a fresh empty chest at its own primary on the next reconciler pass (see "Performance — reconciler watchdog"). The frequency is low enough that an event-driven splitter pass would be more code than it's worth.
+- On `on_configuration_changed`, the runtime walks all networks, ensures each has exactly one chest at its current primary, merges and destroys duplicates, and creates one if missing. This is also the migration path for saves that pre-date this invariant (every old hive's chest existing → reduced to per-network primaries).
 
 ## Network resolver
 
 - A "network" is the set of hive + hive-node entities whose construction radii overlap, scoped to the hive force and the same surface.
-- Cost reads and writes treat the union of all member chests as one virtual inventory.
+- Cost reads and writes route through the network's primary chest (the only chest in the network — see "Storage").
 - `Network.hives_for_position(surface, position, reach)` accepts an optional `reach` parameter: the seed check uses `s.range + reach` instead of `s.range`. With `reach = 0` (default), the position must be inside an existing structure's box. With `reach = shared.ranges.hive_node`, the position only has to be close enough that the new node's own range would overlap the network — used so the player can extend the network outward by chaining nodes without having to rebuild from inside the previous range. `Cost.placement_reach(entity_name)` returns this value: zero for everything except the hive node.
 
 ## Anchor placement
@@ -96,7 +103,7 @@ All anchor-binding behavior in this section is gated on the `hm-anchor-binding` 
   - The hive is flagged in its storage record with `building_until_tick = deadline_tick`. While `game.tick < building_until_tick`, the hive is treated as inert: recruitment skips it (Scan.tick checks the flag), creep growth skips it (Creep.tick checks the flag), labels render "Constructing… Ns", and the lab recipe / pheromone-vent unlock auto-completes do not fire from this hive yet.
   - A chat message is printed to the placing player at on_built time: `{"message.hm-anchor-construction-started"}` ("Hive construction started. It is extremely hard to move and will permanently bind your hive to this position. Construction takes 30 seconds.").
   - There is no cancellation. The director permission group already blocks mining at the input layer, and we do not add an exception for in-progress hives. The 30-second window is purely a commitment timer; if the player picks the wrong spot, the only recovery path is to lose the hive in combat (which triggers network collapse + a fresh starter item via the endless-hive rule).
-  - On each on_tick the runtime scans `state.pending_anchor_constructions` for entries whose `deadline_tick <= game.tick`. For each: clear `building_until_tick`, flip the hive prototype's minable status off for that entity (via `entity.minable_flag = false` or by relying on the prototype-level minable removal — TBD which API works at runtime; if neither, gate via the build pipeline's mine-handler), trigger creep auto-research (`hm-hive-spawners` if not already), and remove the entry.
+  - On each on_tick the runtime scans `state.pending_anchor_constructions` for entries whose `deadline_tick <= game.tick`. For each: clear `building_until_tick`, lock mining via `entity.minable = false` (wrapped in `pcall` for forward-compat against runtime API quirks across Factorio versions), trigger creep auto-research (`hm-hive-spawners` if not already), and remove the entry.
 - If the entity dies (combat, etc.) during construction, the pending record is dropped in the existing `on_entity_died` handler and the player gets nothing back — the same as losing a finished anchor (consistent with the "anchor-loss is catastrophic" design).
 - `state.pending_anchor_constructions` lives in `storage`, so a 30-second placement survives save/load — the deadline_tick is absolute against `game.tick`.
 
@@ -194,7 +201,7 @@ Priority when picking the destination of a recruited biter:
 
 ### Pheromone vent risks
 
-- **Friendly fire on dispatch**: hive force is friend with enemy. A group started with no destination defaults to attacking polluted chunks. Verify the engine doesn't path them at vanilla nests; if it does, tighten via `command.target_filter` or a force-friendship override. Test with a debug recipe before shipping.
+- **Friendly fire on dispatch** — resolved via in-game testing on hive-only worlds, with vents placed in the immediate vicinity of the hive and existing spawners. The engine routes the dispatched group toward player infrastructure as intended; vanilla nests and hive-side spawners are not engaged thanks to the hive↔enemy friend flag. No `command.target_filter` override needed.
 - **Disconnect**: vent's `placer_player_index` resolves via `state.hives_by_player`; if the player's hive entry persists across disconnect the vent keeps working, otherwise it's orphaned on the next collapse pass.
 
 ## Build cost
@@ -294,9 +301,37 @@ When `hm-hive-supremacy` is researched, a damage tick inflicts damage on anythin
 
 ## Performance — caching and lazy ticks
 
-- `Hive.all()`: module-local cache of the resolved hive list, populated lazily on first call after invalidation. The world-scan portion (`find_entities_filtered{name = "hm-hive", force}` per surface) runs only on a cache miss; on Space-Age saves with multiple surfaces it costs ~20 ms per call, and the function is invoked from many sites (Scan ×2 per tick, Creep, Workers, Labels, Cost, Death, Supremacy), so caching turns ~140 calls/sec into ~1 per significant world change. Invalidation is event-driven: `Hive.track`, `Hive.untrack`, and lifecycle hooks (`on_init`, `on_configuration_changed`) call `Hive.invalidate_cache()`. Cache hit still filters for `entity.valid` so a hive that died via a path that didn't go through `untrack` is dropped silently.
-- `node_data.nearest_hive_unit_number`: cache. Invalidate on hive build / death and on `on_configuration_changed`. Lazy recompute on stale.
+The mod runs a small set of module-local caches whose contents change only on rare hive-side topology events (hive built, hive destroyed, hive_node built, hive_node destroyed, hive promoted, hive_lab built, hive_lab destroyed). All caches share the same shape: lazily populated on first call, invalidated by event, and reconciled by a slow rotating watchdog (see "Performance — reconciler watchdog") as a safety net against missed invalidations.
+
+The full set:
+
+- **`Hive.all()`** — list of every valid hive across all surfaces. Populated lazily; world-scan rebuild (`find_entities_filtered{name = "hm-hive", force}` per surface) runs only on cache miss. On Space-Age multi-surface saves the rebuild costs ~20 ms; the function is invoked from many sites (Scan ×2 per tick, Creep, Workers, Labels, Cost, Death, Supremacy) — caching turns ~140 calls/sec into ~1 per topology change. Invalidated by `Hive.track`, `Hive.untrack`, `on_init`, `on_configuration_changed`. Promotion (`Promote.swap_node_for_hive`) invalidates indirectly via `Hive.track` on the new hive and `Hive.untrack_node` on the destroyed node. Cache-hit path filters for `entity.valid` so a hive that died via a path that didn't go through `untrack` is dropped silently. The world-scan in the rebuild is the safety net against any code path that creates a hive without calling `Hive.track`.
+- **`Hive.labs()`** — list of every valid `hm-hive-lab` entity. Same pattern as `Hive.all()`. Replaces the per-tick `find_entities_filtered{name = "hm-hive-lab"}` per surface that `Lab.tick_supply` did every 60 ticks. State carries `s.hive_labs[unit_number] = {entity = lab}`. Invalidated by `Hive.track_lab` (called from `Build.on_built` for the lab) and `Hive.untrack_lab` (called from `Death.on_removed` for the lab); also by `on_init` / `on_configuration_changed`. Cache-hit path filters for `entity.valid`.
+- **`Scan.members()`** — sorted list of `{entity, kind}` for every hive + hive_node, used by the unified scan dispatcher. Replaces the per-tick rebuild + sort in `scan.lua`'s old `all_members()`. New members append to the tail (their `unit_number` is always larger than every existing member's), so no re-sort is needed on add — just push. Removals filter in place. Invalidated by `Hive.track`, `Hive.untrack`, `Hive.track_node`, `Hive.untrack_node`, `Promote.swap_node_for_hive`, `on_init` / `on_configuration_changed`. Cache-hit path filters for `entity.valid`.
+- **`Network.cached_for_member(member)`** — `member.unit_number → resolved network` map. The bucket-and-network resolver `bucket_for_member` calls this on every recruit per tick; current code re-walks the overlap graph each call. The cache key is the member's `unit_number`; value is the same `{key, hives, nodes, members, bbox}` table that `Network.resolve_at` returns. Note: enemy biter expansion landing inside the bbox does NOT invalidate the network cache — network identity is purely hive-side. Expansion only affects the recruit bucket's `spawner_count`, which is a different scalar refreshed via `find_entities_filtered{type = "unit-spawner"}` on the bbox during the anchor-pass tick. Invalidated by hive/node build/destroy/promote and `on_init` / `on_configuration_changed`. Cache-hit path filters for `entity.valid` on every member of the cached network table; if any are stale the entry is dropped and re-resolved.
+
+A pollution-capacity cache was considered (`Cost.pollution_capacity(hives)` is hot in labels). After the storage invariant landed (one chest per network), capacity is a single-chest inventory read — `chest.get_item_count(pollution) + iterate stacks`. The per-call cost is O(stack types in one chest) which is a handful. The push-cache would add invalidation surface (every absorb/disgorge/consume/insert would have to bump it) for marginal save. Skipped; revisit only if a perf log shows otherwise.
+
+Other lazy-skip rules:
+
 - `Workers.tick()`: skip when `state.worker_jobs` is empty AND no hive-force ghosts exist on any surface.
+- `Creep.tick`: short-circuits per member once `creep_layer > max_radius + 1`.
+- `Anchor.tick`: scans `pending_anchor_constructions` table; almost always empty.
+- `node_data.cached_nearest_hive`: existing per-node cache for nearest-hive lookup, invalidated on the cached hive's invalidation. Untouched by this round.
+
+## Performance — reconciler watchdog
+
+A single slow rotating reconciler runs every `intervals.reconcile = 600` ticks (10 s) as a safety net for the event-driven caches above. It is **not** the source of truth — invalidations are. The watchdog exists to catch missed invalidations (any code path that mutates state without firing the right event) and to dispose of stale entries in network-keyed caches whose key no longer corresponds to an extant network.
+
+- One reconciler tick picks ONE registered cache via round-robin (`state.reconcile_cursor`). With N caches, each cache is verified every `N × 10` seconds — slow enough to be irrelevant to per-tick budget, fast enough that drift surfaces in test sessions.
+- For each cache the reconciler runs a `compare_fn`: rebuild from scratch (the same logic the cold-cache path uses), diff against the cached value, count adds and drops. On any non-zero diff the cache is replaced with the rebuilt value AND telemetry emits a `[reconcile]` line (format documented below) so a developer notices and fixes the missed invalidation.
+- Registered caches: `Hive.all`, `Hive.labs`, `Scan.members`, `Network.cached_for_member` (verified one member per pass to keep cost bounded). Storage-invariant audit ("each network has exactly one chest at its primary") is also a reconciler check; on mismatch the chest is moved or recreated.
+- Telemetry log line on drift (gated on `hm-debug-telemetry`):
+  - `[reconcile] tick=N cache=<name> add=A drop=D` — A entries appeared, D disappeared between cached and rebuilt values. Quiet log = caches in sync.
+  - `[reconcile] tick=N cache=<name> error=<message>` — probe raised; cache state unchanged for that pass.
+- Reconciler runs from the standard `on_tick` dispatcher under the same telemetry wrapper as the other timed jobs (`reconcile_ms`).
+- Cost: O(rebuild) of one cache per 10 s. The rebuild walks surfaces / topology — same as a cold-cache miss. Amortised it's negligible.
+- The reconciler is not authoritative for player-visible state. If it finds a missing chest in a network split, it creates an empty one — the player loses any stockpiled creatures that were "lost" between the split and the next reconcile pass (10 s × N caches), but only for that orphan-fragment case which is itself rare.
 
 ## Network collapse
 
@@ -331,6 +366,7 @@ Two log lines, both gated on the `hm-debug-telemetry` **runtime-global** setting
 | `recruit.gate_attack_groups` | false | attack-group biters bypass bucket |
 | `intervals.scan` | 60 | unified scan cadence |
 | `intervals.supremacy` | 60 | damage cadence |
+| `intervals.reconcile` | 600 | reconciler watchdog cadence (per-cache, round-robin) |
 | `supremacy.candidate_scan` | 600 | candidate rebuild cadence per hive |
 | `supremacy.tree_lifetime` | 30 | tree death time on creep, in seconds |
 | `supremacy.building_lifetime` | 60 | building death time on creep, in seconds |

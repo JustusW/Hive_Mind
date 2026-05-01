@@ -65,7 +65,50 @@ function M.create_chest(hive)
   if chest and chest.valid then record.chest = chest end
 end
 
+-- Drain `from_hive`'s chest contents into `to_hive`'s chest. Both chests
+-- must already exist; caller is responsible for creating `to_hive`'s if
+-- needed (typically via Network.ensure_chest_at_primary). Used when a new
+-- hive becomes the network primary, or when the dying primary's chest
+-- needs to roll into the surviving primary's. Stack-by-stack copy. Returns
+-- true on success.
+function M.move_chest_contents(from_hive, to_hive)
+  if not (from_hive and to_hive) then return false end
+  local from_chest = M.get_chest(from_hive)
+  local to_chest   = M.get_chest(to_hive)
+  if not (from_chest and from_chest.valid and to_chest and to_chest.valid) then return false end
+  if from_chest == to_chest then return true end
+  local from_inv = from_chest.get_inventory(defines.inventory.chest)
+  local to_inv   = to_chest.get_inventory(defines.inventory.chest)
+  if not (from_inv and to_inv) then return false end
+  for i = 1, #from_inv do
+    local stack = from_inv[i]
+    if stack and stack.valid_for_read then
+      to_inv.insert{name = stack.name, count = stack.count}
+    end
+  end
+  from_inv.clear()
+  return true
+end
+
 -- ── Tracking ──────────────────────────────────────────────────────────────────
+
+-- Subscriber registry for hive-side topology changes (hive built, hive
+-- destroyed, node built, node destroyed, promote). Other modules call
+-- `Hive.on_topology_change(fn)` once at require time and the registered
+-- functions fire on every track/untrack/track_node/untrack_node. Used by
+-- Scan, Network, Cost to invalidate their member-keyed caches without
+-- circular imports — Hive doesn't need to know who's subscribed.
+local topology_subscribers = {}
+
+function M.on_topology_change(fn)
+  topology_subscribers[#topology_subscribers + 1] = fn
+end
+
+local function fire_topology_change()
+  for _, fn in ipairs(topology_subscribers) do
+    fn()
+  end
+end
 
 function M.track(player_index, entity)
   if not (entity and entity.valid and entity.unit_number) then return end
@@ -76,6 +119,7 @@ function M.track(player_index, entity)
   local record = M.get_storage(entity)
   if record then record.owner_player_index = player_index end
   M.invalidate_cache()
+  fire_topology_change()
 end
 
 function M.untrack(entity)
@@ -88,18 +132,47 @@ function M.untrack(entity)
   end
   s.hive_storage[entity.unit_number] = nil
   M.invalidate_cache()
+  fire_topology_change()
 end
 
 function M.track_node(entity)
   if not (entity and entity.valid and entity.unit_number) then return end
   local s = State.get()
   s.hive_nodes[entity.unit_number] = {entity = entity}
+  fire_topology_change()
 end
 
 function M.untrack_node(entity)
   if not (entity and entity.valid and entity.unit_number) then return end
   local s = State.get()
   s.hive_nodes[entity.unit_number] = nil
+  fire_topology_change()
+end
+
+-- ── Lab tracking ──────────────────────────────────────────────────────────────
+--
+-- Hive labs were previously discovered every 60 ticks via
+-- `surface.find_entities_filtered{name = "hm-hive-lab"}` per surface. On
+-- multi-surface saves that's the same per-surface cost as the old
+-- `Hive.all()` had, and it's pure waste — labs only appear/disappear on
+-- explicit build/destroy events. Track them in state and serve a cached
+-- list. Same shape as the hive cache: lazy populate, event invalidate,
+-- reconciler safety net.
+
+function M.track_lab(entity)
+  if not (entity and entity.valid and entity.unit_number) then return end
+  if entity.name ~= shared.entities.hive_lab then return end
+  local s = State.get()
+  s.hive_labs[entity.unit_number] = {entity = entity}
+  M.invalidate_labs_cache()
+end
+
+function M.untrack_lab(entity)
+  if not (entity and entity.valid and entity.unit_number) then return end
+  if entity.name ~= shared.entities.hive_lab then return end
+  local s = State.get()
+  s.hive_labs[entity.unit_number] = nil
+  M.invalidate_labs_cache()
 end
 
 -- First valid hive owned by `player_index` (or nil).
@@ -191,6 +264,64 @@ function M.all()
     end
     cached_hives = rebuild_cache()
     return cached_hives
+  end)
+end
+
+-- ── Lab cache ────────────────────────────────────────────────────────────────
+--
+-- Same shape as Hive.all(). The world-scan rebuild is the safety net for
+-- any code path that creates a hive_lab without calling track_lab (e.g.
+-- migrating an old save where labs weren't tracked).
+local cached_labs = nil
+
+function M.invalidate_labs_cache()
+  cached_labs = nil
+end
+
+local function rebuild_labs_cache()
+  local s = State.get()
+  local result = {}
+  local seen = {}
+  for unit_number, record in pairs(s.hive_labs) do
+    local lab = record and record.entity
+    if lab and lab.valid then
+      seen[unit_number] = true
+      result[#result + 1] = lab
+    else
+      s.hive_labs[unit_number] = nil
+    end
+  end
+  local hive_force = Force.get_hive()
+  if hive_force and game then
+    for _, surface in pairs(game.surfaces) do
+      local labs = surface.find_entities_filtered{
+        name  = shared.entities.hive_lab,
+        force = hive_force,
+      }
+      for _, lab in pairs(labs) do
+        if lab.valid and lab.unit_number and not seen[lab.unit_number] then
+          seen[lab.unit_number] = true
+          result[#result + 1] = lab
+          s.hive_labs[lab.unit_number] = {entity = lab}
+        end
+      end
+    end
+  end
+  return result
+end
+
+function M.labs()
+  return Telemetry.measure("hive_labs", function()
+    if cached_labs then
+      local fresh = {}
+      for _, lab in ipairs(cached_labs) do
+        if lab and lab.valid then fresh[#fresh + 1] = lab end
+      end
+      cached_labs = fresh
+      return cached_labs
+    end
+    cached_labs = rebuild_labs_cache()
+    return cached_labs
   end)
 end
 

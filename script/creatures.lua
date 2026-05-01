@@ -294,7 +294,10 @@ end
 -- can happen for orphaned nodes mid-collapse).
 local function bucket_for_member(member, ctx)
   if not (member and member.valid) then return nil end
-  local network = Network.resolve_at(member.surface, member.position)
+  -- Use the cached resolution: same input every recruit tick, stable
+  -- between topology changes. Falls through to a fresh resolve on cache
+  -- miss or when any cached member became invalid.
+  local network = Network.cached_for_member(member)
   if not network or not network.key then return nil end
 
   local s = ctx.state

@@ -14,6 +14,7 @@ local State     = require("script.state")
 local Force     = require("script.force")
 local Director  = require("script.director")
 local Hive      = require("script.hive")
+local Network   = require("script.network")
 local Creatures = require("script.creatures")
 local Build     = require("script.build")
 local Death     = require("script.death")
@@ -28,6 +29,7 @@ local Scan      = require("script.scan")
 local Pheromone = require("script.pheromone")
 local Anchor    = require("script.anchor")
 local Promote   = require("script.promote")
+local Reconcile = require("script.reconcile")
 
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
 
@@ -52,6 +54,10 @@ local function on_tick(event)
   -- has 30 chances to land within ±1 tick of the deadline). Not on the
   -- scan cadence because Anchor.tick is independent of recruit timing.
   if tick % 60                         == 0 then Telemetry.measure("anchor",    Anchor.tick)                 end
+  -- Reconciler watchdog: one cache verified per cadence, round-robin.
+  -- Bounded cost (one rebuild per 600 ticks); event-driven invalidations
+  -- remain the source of truth.
+  if tick % shared.intervals.reconcile == 0 then Telemetry.measure("reconcile", Reconcile.tick)              end
 
   Telemetry.measure("debug", Debug.tick)
 
@@ -72,6 +78,8 @@ script.on_init(function()
   Pheromone.reset()
   Labels.cleanup_legacy_labels()
   Hive.invalidate_cache()
+  Hive.invalidate_labs_cache()
+  Network.invalidate_cache()
 end)
 
 script.on_configuration_changed(function()
@@ -79,6 +87,9 @@ script.on_configuration_changed(function()
   Force.configure(Force.get_hive())
   Force.get_permission_group()
   Director.update_all_hive_buttons()
+  Hive.invalidate_cache()
+  Hive.invalidate_labs_cache()
+  Network.invalidate_cache()
 
   -- Snap any joined player back to the god controller in case a config change
   -- knocked them off it.
@@ -89,12 +100,15 @@ script.on_configuration_changed(function()
     end
   end
 
-  -- Re-create any hive storage chest the migration lost.
+  -- Storage invariant migration. Old saves had one chest per hive; the
+  -- 0.9.24 invariant is one chest per network, owned by the primary
+  -- (smallest unit_number). Walk every hive, run ensure_chest_at_primary
+  -- on its network — that consolidates duplicate chests into the primary's
+  -- and creates a chest if the network has none. Idempotent; skipping a
+  -- network because the first hive we visited already consolidated it is
+  -- a no-op on the second visit.
   for _, hive in pairs(Hive.all()) do
-    local record = Hive.get_storage(hive)
-    if record and not (record.chest and record.chest.valid) then
-      Hive.create_chest(hive)
-    end
+    Network.ensure_chest_at_primary(hive)
   end
 
   -- Defensive cleanup for the pheromone-burst rework: clear any in-flight

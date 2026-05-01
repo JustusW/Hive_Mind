@@ -213,27 +213,6 @@ local function surviving_network_mate(dying)
   return nil
 end
 
--- Move every stack from the dying hive's chest into a survivor's chest.
--- Both hives' chests are part of the same shared-storage network, so the
--- merge is purely physical re-homing — no creature disgorge, no pollution
--- loss. Returns true if the chest was successfully drained.
-local function merge_chest_into(dying, survivor)
-  local from = Hive.get_chest(dying)
-  local to   = Hive.get_chest(survivor)
-  if not (from and from.valid and to and to.valid) then return false end
-  local from_inv = from.get_inventory(defines.inventory.chest)
-  local to_inv   = to.get_inventory(defines.inventory.chest)
-  if not (from_inv and to_inv) then return false end
-  for i = 1, #from_inv do
-    local stack = from_inv[i]
-    if stack and stack.valid_for_read then
-      to_inv.insert{name = stack.name, count = stack.count}
-    end
-  end
-  from_inv.clear()
-  return true
-end
-
 -- Single handler for on_entity_died, on_robot_mined_entity, script_raised_destroy.
 function M.on_removed(event)
   local entity = event.entity
@@ -247,15 +226,33 @@ function M.on_removed(event)
     -- runs when no network mate remains.
     local survivor = surviving_network_mate(entity)
     if survivor then
-      merge_chest_into(entity, survivor)
-      -- Destroy the now-empty chest and untrack the hive without running
-      -- release_hive_contents (no creatures left to release) or
-      -- collapse_orphans (the network is intact).
-      local record = State.get().hive_storage[entity.unit_number]
-      if record and record.chest and record.chest.valid then
-        record.chest.destroy()
+      -- Storage invariant: only the primary hive holds a chest. If the
+      -- dying hive was the primary, drain its chest into the survivor's
+      -- before untracking; ensure_chest_at_primary then re-runs the
+      -- invariant after the topology change (in case the survivor isn't
+      -- the new primary).
+      local dying_chest = Hive.get_chest(entity)
+      if dying_chest and dying_chest.valid then
+        local to_chest = Hive.get_chest(survivor)
+        if not to_chest then
+          Hive.create_chest(survivor)
+          to_chest = Hive.get_chest(survivor)
+        end
+        local from_inv = dying_chest.get_inventory(defines.inventory.chest)
+        local to_inv   = to_chest and to_chest.get_inventory(defines.inventory.chest) or nil
+        if from_inv and to_inv then
+          for i = 1, #from_inv do
+            local stack = from_inv[i]
+            if stack and stack.valid_for_read then
+              to_inv.insert{name = stack.name, count = stack.count}
+            end
+          end
+          from_inv.clear()
+        end
+        dying_chest.destroy()
       end
       Hive.untrack(entity)
+      Network.ensure_chest_at_primary(survivor)
     else
       M.release_hive_contents(entity)
       Hive.untrack(entity)
@@ -275,6 +272,8 @@ function M.on_removed(event)
     end
   elseif entity.name == shared.entities.hive_node then
     Hive.untrack_node(entity)
+  elseif entity.name == shared.entities.hive_lab then
+    Hive.untrack_lab(entity)
   elseif entity.name == shared.entities.pheromone_vent then
     State.get().pheromone_vents[entity.unit_number] = nil
   elseif entity.name == shared.entities.pollution_generator then

@@ -121,25 +121,38 @@ end
 -- ── Charge / consume ─────────────────────────────────────────────────────────
 
 -- Total pollution this network could produce: existing pollution items plus
--- the value of every stored creature, summed across every hive's chest.
+-- the value of every stored creature in the network's primary chest.
 -- Read-only; safe to call before deciding whether to spend.
+--
+-- Storage invariant (see design.md → Storage): only the primary hive
+-- (smallest unit_number) carries a chest; non-primary hives have none. We
+-- look up the primary directly instead of iterating the full hive list
+-- with empty-chest short-circuits — a small simplification that makes the
+-- single-chest semantics explicit at the read site.
 function M.pollution_capacity(hives)
-  local total = 0
+  if not hives then return 0 end
+  local primary, primary_id
   for _, hive in pairs(hives) do
-    local chest = Hive.get_chest(hive)
-    if chest then
-      local inv = chest.get_inventory(defines.inventory.chest)
-      if inv then
-        total = total + inv.get_item_count(shared.items.pollution)
-        for i = 1, #inv do
-          local stack = inv[i]
-          if stack and stack.valid_for_read then
-            local unit_name = shared.creature_unit_name(stack.name)
-            if unit_name then
-              total = total + stack.count * M.unit_pollution_value(unit_name)
-            end
-          end
-        end
+    if hive and hive.valid then
+      local id = hive.unit_number
+      if id and (not primary_id or id < primary_id) then
+        primary_id, primary = id, hive
+      end
+    end
+  end
+  if not primary then return 0 end
+  local chest = Hive.get_chest(primary)
+  if not chest then return 0 end
+  local inv = chest.get_inventory(defines.inventory.chest)
+  if not inv then return 0 end
+
+  local total = inv.get_item_count(shared.items.pollution)
+  for i = 1, #inv do
+    local stack = inv[i]
+    if stack and stack.valid_for_read then
+      local unit_name = shared.creature_unit_name(stack.name)
+      if unit_name then
+        total = total + stack.count * M.unit_pollution_value(unit_name)
       end
     end
   end
