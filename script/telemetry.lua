@@ -107,11 +107,11 @@ function M.measure(category, fn, ...)
   if not fn then return end
   local scratch = ensure_scratch()
   if not scratch then return fn(...) end
-  scratch:restart()           -- reset + start; value=0 and running
+  scratch.restart()           -- reset + start; value=0 and running
   local result = fn(...)
-  scratch:stop()              -- pause; value = duration of fn
+  scratch.stop()              -- pause; value = duration of fn
   local accum = get_accumulator(category)
-  if accum then accum:add(scratch) end
+  if accum then accum.add(scratch) end
   return result
 end
 
@@ -204,9 +204,12 @@ function M.flush_recruit(tick)
   probe_counts.ag_pcall_err      = 0
 end
 
--- Reset every profiler so the next flush window starts fresh.
+-- Reset every profiler so the next flush window starts fresh. NB: Factorio
+-- 2.0 LuaProfiler methods are bound to the userdata (the engine threads
+-- self automatically), so we call with dot syntax — colon would pass an
+-- extra argument and trip "Expected N arguments but N+1 were given".
 local function reset_profilers()
-  for _, p in pairs(profilers) do p:reset() end
+  for _, p in pairs(profilers) do p.reset() end
 end
 
 -- Append a [perf] line for the cadence window and reset accumulators.
