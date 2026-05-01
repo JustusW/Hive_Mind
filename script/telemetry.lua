@@ -343,4 +343,19 @@ function M.log_reconcile(name, add, drop, err)
   helpers.write_file("hm-debug.txt", line, true)
 end
 
+-- safe.call failure logger. Writes a single line to hm-debug.txt when a
+-- defensive wrapper's pcall raised. Quiet log = every defensive call
+-- succeeded; nothing to investigate. See script/safe.lua for the
+-- wrapper itself.
+--
+-- Format:
+--   [safe] tick=N label=<label> error=<message>
+function M.log_safe(label, message)
+  if not shared.feature_enabled("hm-debug-telemetry") then return end
+  local tick = (game and game.tick) or 0
+  local line = string.format("[safe] tick=%d label=%s error=%s\n",
+                             tick, tostring(label), tostring(message))
+  helpers.write_file("hm-debug.txt", line, true)
+end
+
 return M

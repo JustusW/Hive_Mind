@@ -8,6 +8,7 @@ local shared    = require("shared")
 local State     = require("script.state")
 local Force     = require("script.force")
 local Telemetry = require("script.telemetry")
+local Safe      = require("script.safe")
 
 local M = {}
 
@@ -352,7 +353,7 @@ function M.spawn_worker_corpse(entity)
   local candidates = {"small-wriggler-pentapod-corpse"}
   for _, name in ipairs(candidates) do
     if prototypes.entity[name] then
-      pcall(function()
+      Safe.call("hive.worker_corpse", function()
         entity.surface.create_entity{
           name = name, position = entity.position, force = entity.force
         }

@@ -334,6 +334,34 @@ A single slow rotating reconciler runs every `intervals.reconcile = 600` ticks (
 - Cost: O(rebuild) of one cache per 10 s. The rebuild walks surfaces / topology — same as a cold-cache miss. Amortised it's negligible.
 - The reconciler is not authoritative for player-visible state. If it finds a missing chest in a network split, it creates an empty one — the player loses any stockpiled creatures that were "lost" between the split and the next reconcile pass (10 s × N caches), but only for that orphan-fragment case which is itself rare.
 
+## Defensive wrappers
+
+A handful of Factorio API calls have raised on past engine versions or
+behave differently across controller types (e.g., `entity.minable`
+write, `player.cursor_stack` access on the god controller, prototype
+`max_health` on certain entity types). Today those calls are scattered
+behind individual `pcall(function() ... end)` wrappers; the failures
+disappear silently.
+
+`script/safe.lua` centralises this with one helper:
+
+```lua
+safe.call(label, fn, ...) → fn's first return on success; nil on failure
+```
+
+On `pcall` failure it emits a `[safe] tick=N label=<label> error=<msg>`
+line via `Telemetry.log_safe` (gated on `hm-debug-telemetry` like every
+other telemetry line). `label` is a short stable string per call site
+(`"anchor.minable_lock"`, `"director.restore_mined"`, etc.) so the log
+points at the offending wrapper.
+
+Existing `pcall` sites in `anchor.lua`, `promote.lua`, `labels.lua`,
+`director.lua`, `hive.lua`, `pheromone.lua`, `supremacy.lua` route
+through `safe.call`. Two sites stay raw: `build.lua`'s
+`get_evolution_factor` call (it inspects both `ok` and `value` for
+control-flow), and `reconcile.lua`'s probe dispatch (the reconciler IS
+the failure handler).
+
 ## Network collapse
 
 - Trigger: `Death.on_removed` for a `hm-hive`.
@@ -349,14 +377,17 @@ A single slow rotating reconciler runs every `intervals.reconcile = 600` ticks (
 
 ## Telemetry
 
-Two log lines, both gated on the `hm-debug-telemetry` **runtime-global** setting (default **off**), written to `script-output/hm-debug.txt`. The setting is read via `shared.feature_enabled("hm-debug-telemetry")` at flush time. Runtime-global instead of startup so it can be toggled mid-session — useful for catching transient lag spikes without restarting the world. End users get a quiet save folder by default; flip it on in Mod settings → Runtime when tuning.
+Five log lines, all gated on the `hm-debug-telemetry` **runtime-global** setting (default **off**), written to `script-output/hm-debug.txt`. The setting is read via `shared.feature_enabled("hm-debug-telemetry")` at flush time. Runtime-global instead of startup so it can be toggled mid-session — useful for catching transient lag spikes without restarting the world. End users get a quiet save folder by default; flip it on in Mod settings → Runtime when tuning.
 
 ```
-[recruit] tick=N networks=K tokens=[t1,t2,...] R=[r1,r2,...] spawners=[s1,s2,...] group=G trickle=T skipped=S
-[perf]    tick=N scanned=M recruit_ms=… absorb_ms=… supremacy_ms=… workers_ms=… creep_ms=… total_ms=…
+[recruit]   tick=N networks=K tokens=[t1,t2,...] R=[r1,r2,...] spawners=[s1,s2,...] group=G trickle=T skipped=S
+[perf]      tick=N scanned=M recruit_ms=… absorb_ms=… supremacy_ms=… workers_ms=… creep_ms=… total_ms=…
+[supremacy] tick=N cache=K rebuilds=R added=A damages=D killed=Q off_creep=O no_unit_number=U
+[reconcile] tick=N cache=<name> add=A drop=D                    (only on drift)
+[safe]      tick=N label=<label> error=<message>                (only on safe.call failure)
 ```
 
-`scanned` is how many network members (hives + hive-nodes) the unified scan processed this tick — work-spreading visibility.
+`scanned` is how many network members (hives + hive-nodes) the unified scan processed this tick — work-spreading visibility. `[reconcile]` and `[safe]` are quiet-on-success — emit only when something needs attention.
 
 ## Tunables (shared.lua)
 

@@ -14,6 +14,7 @@ local Hive      = require("script.hive")
 local Creatures = require("script.creatures")
 local Anchor    = require("script.anchor")
 local Network   = require("script.network")
+local Safe      = require("script.safe")
 
 local M = {}
 
@@ -272,7 +273,7 @@ function M.restore_mined_entities()
   for _, r in pairs(pending) do
     local surface = game.surfaces[r.surface_index]
     if surface then
-      pcall(function()
+      Safe.call("director.restore_mined", function()
         surface.create_entity{
           name      = r.name,
           position  = r.position,

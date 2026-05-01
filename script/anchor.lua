@@ -31,6 +31,7 @@
 local shared = require("shared")
 local State  = require("script.state")
 local Hive   = require("script.hive")
+local Safe   = require("script.safe")
 
 local M = {}
 
@@ -134,9 +135,9 @@ local function complete(entity, hive_record)
   -- Anchor lock-in: cannot be mined any further. The director permission
   -- group already blocks mining for hive players, so this is a defence in
   -- depth against scripted mining or any future code path that bypasses
-  -- the permission gate. Wrapped in pcall because LuaEntity.minable is
-  -- writable in 2.0 but historically had quirks across versions.
-  pcall(function() entity.minable = false end)
+  -- the permission gate. Routed through Safe because LuaEntity.minable
+  -- is writable in 2.0 but historically had quirks across versions.
+  Safe.call("anchor.minable_lock", function() entity.minable = false end)
 
   -- Trigger the same gameplay-event unlocks the original on_hive_placed
   -- ran at placement time, but now that the hive is "live". Recipe enables

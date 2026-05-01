@@ -29,6 +29,7 @@ local Hive      = require("script.hive")
 local Force     = require("script.force")
 local State     = require("script.state")
 local Telemetry = require("script.telemetry")
+local Safe      = require("script.safe")
 
 local M = {}
 
@@ -64,8 +65,8 @@ local SKIP_TYPE = {
 local function safe_max_health(entity)
   local proto = entity.prototype
   if proto then
-    local ok, h = pcall(function() return proto.max_health end)
-    if ok and h and h > 0 then return h end
+    local h = Safe.call("supremacy.max_health", function() return proto.max_health end)
+    if h and h > 0 then return h end
   end
   if entity.health and entity.health > 0 then return entity.health end
   return nil

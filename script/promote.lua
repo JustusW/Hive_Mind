@@ -22,6 +22,7 @@ local Network   = require("script.network")
 local Hive      = require("script.hive")
 local Cost      = require("script.cost")
 local Telemetry = require("script.telemetry")
+local Safe      = require("script.safe")
 
 local M = {}
 
@@ -100,7 +101,7 @@ local function swap_node_for_hive(node, player_index)
 
   -- Belt-and-braces: ensure the hive isn't carrying the non-minable flag
   -- the anchor lock-in writes. Promoted hives stay minable.
-  pcall(function() hive.minable = true end)
+  Safe.call("promote.minable_unlock", function() hive.minable = true end)
 
   return hive
 end

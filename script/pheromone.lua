@@ -25,6 +25,7 @@ local shared    = require("shared")
 local State     = require("script.state")
 local Force     = require("script.force")
 local Telemetry = require("script.telemetry")
+local Safe      = require("script.safe")
 
 local M = {}
 
@@ -56,18 +57,19 @@ end
 -- recipe's result and has no in-world function — the recipe completion event
 -- is what triggers the burst, not "carrying the item".
 --
--- All API touches on the player are inside pcall because hive directors run
--- on the god controller, where a few inventory accessors behave differently
--- than character-controller players and have raised in past versions.
+-- All API touches on the player route through Safe because hive directors
+-- run on the god controller, where a few inventory accessors behave
+-- differently than character-controller players and have raised in past
+-- versions.
 local function strip_pheromone_items(player)
   if not (player and player.valid) then return end
-  pcall(function()
+  Safe.call("pheromone.cursor_strip", function()
     local cursor = player.cursor_stack
     if cursor and cursor.valid_for_read and cursor.name == shared.items.pheromones then
       cursor.clear()
     end
   end)
-  pcall(function()
+  Safe.call("pheromone.inventory_strip", function()
     local inv = player.get_main_inventory()
     if inv then
       local n = inv.get_item_count(shared.items.pheromones)
@@ -182,10 +184,10 @@ function M.tick()
   -- One-shot migration: saves made under earlier broken builds may have
   -- stranded hm-pheromones items in joined players' inventories. Runs
   -- exactly once after the fix loads (gated on a storage flag) so it
-  -- doesn't re-scan every tick. Wrapped in pcall so a controller-specific
-  -- inventory quirk can't bring the mod down.
+  -- doesn't re-scan every tick. Routed through Safe so a controller-
+  -- specific inventory quirk can't bring the mod down.
   if not s.pheromone_v2_migrated then
-    pcall(function()
+    Safe.call("pheromone.v2_migration", function()
       for player_index in pairs(s.joined_players) do
         strip_pheromone_items(game.get_player(player_index))
       end

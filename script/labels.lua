@@ -21,6 +21,7 @@ local State   = require("script.state")
 local Hive    = require("script.hive")
 local Network = require("script.network")
 local Cost    = require("script.cost")
+local Safe    = require("script.safe")
 
 local M = {}
 
@@ -71,7 +72,7 @@ local function ensure_label(player)
   -- 2× default size so the read-out is legible without squinting at the
   -- top bar. heading-1-label is the largest built-in label style; if a
   -- future Factorio version drops it, fall through silently.
-  pcall(function() label.style.font = "heading-1-label" end)
+  Safe.call("labels.heading_font", function() label.style.font = "heading-1-label" end)
   return label
 end
 
