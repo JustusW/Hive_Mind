@@ -106,18 +106,25 @@ locale=auto
 
   Set-Content -LiteralPath $configPath -Value $configContent -Encoding ASCII
 
+  # Only seed mod-list.json on first run. After that the user (and the
+  # in-game mod manager) own it — overwriting on every launch wipes any
+  # other mods they enabled and causes ModsMismatch when the dev client
+  # and dev server are launched in different orders or after enabling a
+  # mod via the GUI.
   $modListPath = Join-Path $modsPath "mod-list.json"
-  $modList = @{
-    mods = @(
-      @{ name = "base"; enabled = $true },
-      @{ name = "elevated-rails"; enabled = $false },
-      @{ name = "quality"; enabled = $false },
-      @{ name = "space-age"; enabled = $false },
-      @{ name = $modInfo.name; enabled = $true }
-    )
-  } | ConvertTo-Json -Depth 4
+  if (-not (Test-Path -LiteralPath $modListPath)) {
+    $modList = @{
+      mods = @(
+        @{ name = "base"; enabled = $true },
+        @{ name = "elevated-rails"; enabled = $false },
+        @{ name = "quality"; enabled = $false },
+        @{ name = "space-age"; enabled = $false },
+        @{ name = $modInfo.name; enabled = $true }
+      )
+    } | ConvertTo-Json -Depth 4
 
-  Set-Content -LiteralPath $modListPath -Value $modList -Encoding ASCII
+    Set-Content -LiteralPath $modListPath -Value $modList -Encoding ASCII
+  }
 
   return @{
     ConfigPath = $configPath
