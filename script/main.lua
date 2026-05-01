@@ -130,13 +130,13 @@ commands.add_command(
   "hm-telemetry",
   "Toggle Hive Mind Reworked debug telemetry. Usage: /hm-telemetry on|off|status",
   function(event)
+    -- No admin gate: this is a tuning knob, not a griefing vector. Anyone
+    -- in the session can flip it. The previous admin check made the
+    -- command useless in the typical dev setup (headless server has no
+    -- admins, connecting dev client wasn't promoted).
     local player = event.player_index and game.get_player(event.player_index) or nil
     local function reply(msg)
       if player then player.print(msg) else print(msg) end
-    end
-    if player and not player.admin then
-      reply("/hm-telemetry: admin only.")
-      return
     end
     local arg = (event.parameter or ""):lower():gsub("%s+", "")
     local current = (settings.global["hm-debug-telemetry"] or {}).value == true
