@@ -7,7 +7,7 @@ You play a hive mind, not an engineer. You direct biters instead of crafting cir
 1. Press **Join the Hive** to commit, or **Reject the Hive** to opt out permanently. Either choice removes both buttons from the GUI; rejection prints a one-line obituary and leaves you alone.
 2. After joining you become a director with no physical body — the only items you carry are the buildings the hive has unlocked. Those items are pinned to your quickbar and refilled on a watchdog tick.
 3. Place a **Hive**. This is your foothold; recruitment and the construction network are anchored here.
-4. The hive draws biters in. They walk in and get absorbed; a floating label above each hive shows the network's available pollution.
+4. The hive draws biters in. They walk in and get absorbed. The director's screen shows the network's available pollution as a small read-out at the top of the GUI; it's per-player and refreshes a couple of times a second.
 5. Place buildings directly (the cursor refills after each placement) or ghost-place them. Either way the hive turns the placement into a ghost and dispatches a **hive worker** — a ground-bound wiggler-shaped unit — to walk from the nearest hive and materialise it on arrival. The hive is the one exception: it is built directly by the player because no workers exist before the first hive lands.
 6. Place **Hive Labs** to research. They consume creatures to make Pollution Science Packs.
 7. Research worm tiers, the infinite Attraction Reach, and other upgrades. Vanilla research is hidden — only the hive tree is visible.

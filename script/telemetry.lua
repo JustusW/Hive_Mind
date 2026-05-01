@@ -191,7 +191,8 @@ function M.flush_perf(tick)
   for _, v in pairs(timings) do total = total + v end
 
   -- Stable column order so the line is greppable.
-  local cols = {"recruit", "absorb", "supremacy", "workers", "creep"}
+  local cols = {"recruit", "absorb", "supremacy", "workers", "creep",
+                "labels", "loadout", "supply", "pheromone", "anchor"}
   local parts = {}
   for _, k in ipairs(cols) do
     parts[#parts + 1] = k .. "_ms=" .. fmt_ms(timings[k])

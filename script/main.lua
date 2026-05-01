@@ -40,17 +40,17 @@ local function on_tick(event)
   -- rotation.
   Scan.tick(tick)
 
-  if tick % shared.intervals.supply    == 0 then Lab.tick_supply()                                          end
-  if tick % shared.intervals.workers   == 0 then Telemetry.measure("workers",   Workers.tick)               end
-  if tick % shared.intervals.creep     == 0 then Telemetry.measure("creep",     Creep.tick)                 end
-  if tick % shared.intervals.labels    == 0 then Labels.tick()                                              end
-  if tick % shared.intervals.loadout   == 0 then Director.refill_all_loadouts()                             end
-  if tick % shared.intervals.supremacy == 0 then Telemetry.measure("supremacy", Supremacy.tick)             end
-  if tick % shared.intervals.scan      == 0 then Pheromone.tick()                                           end
+  if tick % shared.intervals.supply    == 0 then Telemetry.measure("supply",    Lab.tick_supply)             end
+  if tick % shared.intervals.workers   == 0 then Telemetry.measure("workers",   Workers.tick)                end
+  if tick % shared.intervals.creep     == 0 then Telemetry.measure("creep",     Creep.tick)                  end
+  if tick % shared.intervals.labels    == 0 then Telemetry.measure("labels",    Labels.tick)                 end
+  if tick % shared.intervals.loadout   == 0 then Telemetry.measure("loadout",   Director.refill_all_loadouts) end
+  if tick % shared.intervals.supremacy == 0 then Telemetry.measure("supremacy", Supremacy.tick)              end
+  if tick % shared.intervals.scan      == 0 then Telemetry.measure("pheromone", Pheromone.tick)              end
   -- Anchor construction completion: 1 Hz check is plenty (the 30s window
   -- has 30 chances to land within ±1 tick of the deadline). Not on the
   -- scan cadence because Anchor.tick is independent of recruit timing.
-  if tick % 60                         == 0 then Anchor.tick()                                              end
+  if tick % 60                         == 0 then Telemetry.measure("anchor",    Anchor.tick)                 end
 
   Debug.tick()
 
@@ -69,6 +69,7 @@ script.on_init(function()
   Force.get_permission_group()
   Director.update_all_hive_buttons()
   Pheromone.reset()
+  Labels.cleanup_legacy_labels()
 end)
 
 script.on_configuration_changed(function()
@@ -99,6 +100,10 @@ script.on_configuration_changed(function()
   -- be picked up as still-active) and strip stranded hm-pheromones items
   -- left in joined players' inventories by the un-consumed-item bug.
   Pheromone.reset()
+
+  -- Clean up the previous version's per-hive render-object labels. The
+  -- pollution read-out is now a per-player GUI element (see labels.lua).
+  Labels.cleanup_legacy_labels()
 end)
 
 -- ── Remote interface ─────────────────────────────────────────────────────────
