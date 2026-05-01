@@ -105,12 +105,18 @@ end
 -- charges pollution, performs the swap, prints messages on failure paths.
 function M.on_crafted(event)
   if not event or not event.item_stack then return end
+  -- The on_player_crafted_item dispatcher fans out to multiple handlers,
+  -- and an earlier handler (Pheromone.on_crafted) may have already
+  -- cleared the stack. Reading .name on an invalid stack raises, so gate
+  -- on valid_for_read first; an already-cleared stack means it wasn't
+  -- ours anyway.
+  if not event.item_stack.valid_for_read then return end
   if event.item_stack.name ~= shared.items.promote_node then return end
   local player = game.get_player(event.player_index)
   if not (player and player.valid and player.surface and player.surface.valid) then return end
 
   -- Always consume the marker first; it has no in-world function.
-  if event.item_stack.valid_for_read then event.item_stack.clear() end
+  event.item_stack.clear()
 
   local node = closest_node(player.surface, player.position)
   if not node then

@@ -97,6 +97,10 @@ end
 -- delivery and was the source of the "item stuck in inventory" bug).
 function M.on_crafted(event)
   if not event or not event.item_stack then return end
+  -- A sibling handler in the on_player_crafted_item dispatcher may have
+  -- already cleared the stack; reading .name on an invalid stack raises.
+  -- Bail out cleanly if so.
+  if not event.item_stack.valid_for_read then return end
   if event.item_stack.name ~= shared.items.pheromones then return end
   local player = game.get_player(event.player_index)
   if not (player and player.valid and player.surface and player.surface.valid) then return end
