@@ -9,7 +9,6 @@
 -- absorptions_to_join_attack.pollution (defaulting to 1).
 
 local shared  = require("shared")
-local Hive    = require("script.hive")
 local Network = require("script.network")
 
 local M = {}
@@ -76,72 +75,57 @@ end
 
 -- ── Creature → pollution conversion ──────────────────────────────────────────
 
--- Convert creature items in `hives` into pollution items until the network has
--- at least `target` pollution. Batch-converts whole stacks at a time, not one
--- creature at a time. Returns the post-conversion pollution total.
+-- Convert creature items in the network's primary chest into pollution
+-- items until the chest has at least `target` pollution. Batch-converts
+-- whole stacks at a time, not one creature at a time. Returns the
+-- post-conversion pollution total.
+--
+-- Storage invariant: only the primary chest holds creatures or pollution
+-- items, so the conversion looks at exactly one inventory.
 function M.convert_creatures(hives, target)
   local total = Network.item_count(hives, shared.items.pollution)
   if total >= target then return total end
 
-  for _, hive in pairs(hives) do
+  local chest = Network.primary_chest_in(hives)
+  if not chest then return total end
+  local inv = chest.get_inventory(defines.inventory.chest)
+  if not inv then return total end
+
+  for i = 1, #inv do
     if total >= target then break end
-    local chest = Hive.get_chest(hive)
-    if not chest then goto continue end
-
-    local inv = chest.get_inventory(defines.inventory.chest)
-    if not inv then goto continue end
-
-    for i = 1, #inv do
-      if total >= target then break end
-      local stack = inv[i]
-      if stack and stack.valid_for_read then
-        local unit_name = shared.creature_unit_name(stack.name)
-        if unit_name then
-          local value = M.unit_pollution_value(unit_name)
-          if value > 0 then
-            local needed_units = math.ceil((target - total) / value)
-            local convert = math.min(stack.count, needed_units)
-            if convert > 0 then
-              local removed = inv.remove{name = stack.name, count = convert}
-              if removed > 0 then
-                inv.insert{name = shared.items.pollution, count = removed * value}
-                total = total + removed * value
-              end
+    local stack = inv[i]
+    if stack and stack.valid_for_read then
+      local unit_name = shared.creature_unit_name(stack.name)
+      if unit_name then
+        local value = M.unit_pollution_value(unit_name)
+        if value > 0 then
+          local needed_units = math.ceil((target - total) / value)
+          local convert = math.min(stack.count, needed_units)
+          if convert > 0 then
+            local removed = inv.remove{name = stack.name, count = convert}
+            if removed > 0 then
+              inv.insert{name = shared.items.pollution, count = removed * value}
+              total = total + removed * value
             end
           end
         end
       end
     end
-
-    ::continue::
   end
   return total
 end
 
 -- ── Charge / consume ─────────────────────────────────────────────────────────
 
--- Total pollution this network could produce: existing pollution items plus
--- the value of every stored creature in the network's primary chest.
+-- Total pollution this network could produce: existing pollution items
+-- plus the value of every stored creature in the network's primary chest.
 -- Read-only; safe to call before deciding whether to spend.
 --
 -- Storage invariant (see design.md → Storage): only the primary hive
--- (smallest unit_number) carries a chest; non-primary hives have none. We
--- look up the primary directly instead of iterating the full hive list
--- with empty-chest short-circuits — a small simplification that makes the
--- single-chest semantics explicit at the read site.
+-- (smallest unit_number) carries a chest. Network.primary_chest_in walks
+-- the hive list once to find that chest; we then read it.
 function M.pollution_capacity(hives)
-  if not hives then return 0 end
-  local primary, primary_id
-  for _, hive in pairs(hives) do
-    if hive and hive.valid then
-      local id = hive.unit_number
-      if id and (not primary_id or id < primary_id) then
-        primary_id, primary = id, hive
-      end
-    end
-  end
-  if not primary then return 0 end
-  local chest = Hive.get_chest(primary)
+  local chest = Network.primary_chest_in(hives)
   if not chest then return 0 end
   local inv = chest.get_inventory(defines.inventory.chest)
   if not inv then return 0 end
@@ -197,19 +181,16 @@ function M.consume(surface, position, amount, reach)
   -- `need`), so no extra biters get burned.
   M.convert_creatures(hives, need)
 
-  local remaining = need
-  for _, hive in pairs(hives) do
-    if remaining <= 0 then break end
-    local chest = Hive.get_chest(hive)
-    if chest then
-      local inv = chest.get_inventory(defines.inventory.chest)
-      if inv then
-        local available = inv.get_item_count(shared.items.pollution)
-        local take = math.min(available, remaining)
-        if take > 0 then
-          inv.remove{name = shared.items.pollution, count = take}
-          remaining = remaining - take
-        end
+  -- Storage invariant: pollution lives in the primary chest only. Take
+  -- straight from there; no fan-out across the hive list.
+  local chest = Network.primary_chest_in(hives)
+  if chest then
+    local inv = chest.get_inventory(defines.inventory.chest)
+    if inv then
+      local available = inv.get_item_count(shared.items.pollution)
+      local take = math.min(available, need)
+      if take > 0 then
+        inv.remove{name = shared.items.pollution, count = take}
       end
     end
   end

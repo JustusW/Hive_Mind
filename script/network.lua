@@ -232,36 +232,51 @@ function M.ensure_chest_at_primary(any_member)
   end
 end
 
--- Sum of `item_name` across all chests in `hives`.
-function M.item_count(hives, item_name)
-  local total = 0
+-- Resolve the primary chest given a list of hives — the chest belonging
+-- to the smallest-unit_number hive. After the storage invariant landed
+-- (one chest per network at the primary), this is the only chest in the
+-- network. Used by the `*_in(hives)` aggregators to read/write through a
+-- single inventory instead of iterating the full hive list with
+-- empty-chest short-circuits. Returns nil if none of the hives carries a
+-- chest (e.g. mid-rebalance during a topology change).
+function M.primary_chest_in(hives)
+  if not hives then return nil end
+  local primary, primary_id
   for _, hive in pairs(hives) do
-    local chest = Hive.get_chest(hive)
-    if chest then
-      local inv = chest.get_inventory(defines.inventory.chest)
-      if inv then total = total + inv.get_item_count(item_name) end
-    end
-  end
-  return total
-end
-
--- Insert `item_stack` into the first chest in the network covering
--- `position` that can accept it. Returns true on success. Uses the
--- default reach (the position must already be inside the network).
-function M.insert(surface, position, item_stack)
-  local hives = M.hives_for_position(surface, position, 0)
-  if not hives then return false end
-  for _, hive in pairs(hives) do
-    local chest = Hive.get_chest(hive)
-    if chest then
-      local inv = chest.get_inventory(defines.inventory.chest)
-      if inv and inv.can_insert(item_stack) then
-        inv.insert(item_stack)
-        return true
+    if hive and hive.valid then
+      local id = hive.unit_number
+      if id and (not primary_id or id < primary_id) then
+        primary_id, primary = id, hive
       end
     end
   end
-  return false
+  if not primary then return nil end
+  return Hive.get_chest(primary)
+end
+
+-- Sum of `item_name` in the network's primary chest. Only the primary
+-- holds content (storage invariant); reading any other chest would return
+-- zero, so we look up the primary directly.
+function M.item_count(hives, item_name)
+  local chest = M.primary_chest_in(hives)
+  if not chest then return 0 end
+  local inv = chest.get_inventory(defines.inventory.chest)
+  if not inv then return 0 end
+  return inv.get_item_count(item_name)
+end
+
+-- Insert `item_stack` into the network's primary chest. Returns true on
+-- success. The position is used only to resolve the network — the insert
+-- always lands on the primary, never on a non-primary leftover chest.
+function M.insert(surface, position, item_stack)
+  local hives = M.hives_for_position(surface, position, 0)
+  if not hives then return false end
+  local chest = M.primary_chest_in(hives)
+  if not chest then return false end
+  local inv = chest.get_inventory(defines.inventory.chest)
+  if not inv or not inv.can_insert(item_stack) then return false end
+  inv.insert(item_stack)
+  return true
 end
 
 -- Resolve the full network at `position` on `surface`. Returns a table with:

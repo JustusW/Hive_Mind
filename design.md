@@ -70,7 +70,7 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 
 ## Storage
 
-- Invariant: **at most one `hm-hive-storage` chest per network**, owned by the network's primary hive (smallest `unit_number` among the network's hives). Non-primary hives do not have chests. Earlier versions kept one chest per hive with all-but-primary always empty by construction; that wasted iteration in `Network.item_count`, `Cost.pollution_capacity`, `Cost.convert_creatures`, and forced `Network.primary_chest` to fan out across N empty chests on every aggregation.
+- Invariant: **at most one `hm-hive-storage` chest per network**, owned by the network's primary hive (smallest `unit_number` among the network's hives). Non-primary hives do not have chests. Earlier versions kept one chest per hive with all-but-primary always empty by construction; every aggregator (`Network.item_count`, `Network.insert`, `Cost.pollution_capacity`, `Cost.convert_creatures`, `Cost.consume`) walked the full hive list and short-circuited on the empty ones. All aggregators now route through `Network.primary_chest_in(hives)`, which finds the smallest-unit_number hive once and returns its chest — single inventory access, no fan-out.
 - The chest holds:
   - `hm-creature-<unit-name>` items — one per absorbed unit, hidden.
   - `hm-pollution` items — hidden currency, stack 10000.
@@ -213,7 +213,7 @@ Priority when picking the destination of a recruited biter:
 
 ## Cost charging
 
-- `Cost.pollution_capacity(hives)` sums every chest's existing pollution plus the value of every stored creature. This is read-only and used as a pre-check.
+- `Cost.pollution_capacity(hives)` reads the network's primary chest (via `Network.primary_chest_in`) and sums its existing pollution items plus the value of every stored creature. Read-only; used as a pre-check before any spend.
 - `Cost.consume(surface, position, amount)` resolves the network, computes capacity, and only mutates state on the success path. If capacity is short it returns `false, "insufficient", {need, have}` without converting any biters.
 - `Cost.convert_creatures` consumes the minimum number of biters needed to reach the target — no surplus burn.
 - **Direct path**: `on_built_entity` for a real entity → charge runs first; failure refunds the item and destroys the entity. On success the cursor item is refunded AND the just-placed entity is destroyed and replaced with an `entity-ghost` of the same name at the same position, then queued in `Workers`. The worker walks over and materialises it via `surface.create_entity{raise_built = true}`. This makes direct and ghost placements behave identically — every build is animated by a worker walking out of the nearest hive. The hive itself is the exception: it stays direct-placed because no workers exist before the first hive lands.
@@ -379,4 +379,4 @@ Two log lines, both gated on the `hm-debug-telemetry` **runtime-global** setting
 ## Debug fixtures
 
 - **Pollution Vent** (`hm-pollution-generator`): an iron-chest reskin that emits world pollution at ~1000 active drills' worth per tick. Recipe is currently always available; gate behind a startup setting before shipping.
-- **`script-output/hm-debug.txt`**: appended once per scan tick. Should also be gated.
+- **`script-output/hm-debug.txt`**: appended once per scan tick. Gated on the `hm-debug-telemetry` runtime-global setting; toggle via Mod settings → Runtime or the `/hm-telemetry on|off|status` console command. Off by default — end-user save folders stay quiet.
