@@ -80,7 +80,17 @@ end
 
 -- Every hive-side structure on `surface`, with its build/visibility radius
 -- and kind. `kind` distinguishes "hive" (has a chest) from "node".
+--
+-- Calls Hive.all() first to ensure its world-scan rebuild has had a
+-- chance to backfill `s.hives_by_player[0]` with any hive that's in the
+-- world but not yet tracked (e.g. mid-on_legacy_hive_placed). Cache hit
+-- is a flat valid-filter pass, so the cost is essentially nil after the
+-- first call this tick. Without this, `surviving_network_mate` and other
+-- resolve-at callers would miss replacement hives whose Hive.track
+-- hadn't yet run, falsely collapsing networks during legacy
+-- repositioning.
 function M.all_structures(surface)
+  Hive.all()
   local s = State.get()
   local list = {}
   for _, bucket in pairs(s.hives_by_player) do

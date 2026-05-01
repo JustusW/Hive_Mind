@@ -243,7 +243,24 @@ local function rebuild_cache()
         name  = shared.entities.hive,
         force = hive_force,
       }
-      for _, hive in pairs(hives) do add_hive(result, seen, hive) end
+      for _, hive in pairs(hives) do
+        if hive and hive.valid and hive.unit_number and not seen[hive.unit_number] then
+          -- World-scan found a hive that's not in any player bucket.
+          -- Backfill into the ownerless bucket (player_index 0) so
+          -- Network.all_structures and Network.resolve_at see it on
+          -- subsequent calls. Without this, a hive that landed in the
+          -- world via a code path that didn't call Hive.track — most
+          -- visibly the brief window inside on_legacy_hive_placed
+          -- between the engine creating the new hive and Hive.track
+          -- running on it — would be visible to Hive.all() but
+          -- invisible to network resolution, breaking the
+          -- "surviving-hive detection picks up replacement hives"
+          -- guarantee in design.md → Network collapse.
+          s.hives_by_player[0] = s.hives_by_player[0] or {}
+          s.hives_by_player[0][hive.unit_number] = {entity = hive}
+        end
+        add_hive(result, seen, hive)
+      end
     end
   end
   return result
