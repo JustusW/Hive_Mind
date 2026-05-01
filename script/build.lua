@@ -218,16 +218,39 @@ local function charge_and_ghostify(entity, player_index, refund_item_name)
   return true
 end
 
--- Anchor placed by player. The starter hive item came from
--- Anchor.ensure_hive_available; do not refund. We register the entity, give
--- it a chest, chart its construction zone, then hand off to Anchor.tick to
--- finalise after the 30-second construction window (recipe unlocks happen
--- on completion, not on placement).
+-- Anchor placed by player (anchor-binding setting ON). The starter hive
+-- item came from Anchor.ensure_hive_available; do not refund. We register
+-- the entity, give it a chest, chart its construction zone, then hand off
+-- to Anchor.tick to finalise after the 30-second construction window
+-- (recipe unlocks happen on completion, not on placement).
 local function on_anchor_placed(entity, player_index)
   Hive.track(player_index, entity)
   Hive.create_chest(entity)
   Hive.chart(entity, shared.ranges.hive)
   Anchor.start_construction(entity, player_index, Hive.get_storage(entity))
+end
+
+-- Legacy hive placement (anchor-binding setting OFF). Behaviour the mod had
+-- before the anchor rework: any prior hive of this player is destroyed, the
+-- new one is fully live immediately, gated recipes unlock at once, and the
+-- placed item is refunded so the cursor stays loaded.
+local function on_legacy_hive_placed(entity, player_index)
+  Death.destroy_previous_player_hives(player_index, entity)
+  Hive.track(player_index, entity)
+  Hive.create_chest(entity)
+  Hive.chart(entity, shared.ranges.hive)
+
+  local tech = entity.force.technologies[shared.technologies.hive_spawners]
+  if tech and not tech.researched then tech.researched = true end
+  for _, rname in pairs({
+    shared.recipes.hive_node,
+    shared.recipes.hive_spawner,
+    shared.recipes.hive_spitter_spawner,
+    shared.recipes.promote_node
+  }) do
+    local recipe = entity.force.recipes[rname]
+    if recipe then recipe.enabled = true end
+  end
 end
 
 -- Evolution gate for hive_node placement. Counts existing hive_node entities
@@ -289,13 +312,16 @@ function M.on_built(event)
       return
     end
 
-    -- Anchor placement: the starter hive item came from
-    -- Anchor.ensure_hive_available. Track it, give it a chest, kick off
-    -- the 30-second construction. NO item refund — the player only ever
-    -- gets one starter; if they want it back they have to mine the
-    -- in-progress hive during the construction window.
+    -- Hive placement. Anchor-binding setting ON: track + 30s construction,
+    -- no refund (player consumes their one starter item). OFF: legacy
+    -- behaviour — destroy previous, live immediately, refund the cursor.
     if entity.name == shared.entities.hive then
-      on_anchor_placed(entity, player_index)
+      if shared.feature_enabled("hm-anchor-binding") then
+        on_anchor_placed(entity, player_index)
+      else
+        on_legacy_hive_placed(entity, player_index)
+        Cost.refund_player_item(player_index, shared.items.hive)
+      end
       return
     end
 
@@ -310,9 +336,12 @@ function M.on_built(event)
       return
     end
 
-    -- Evolution-gated node count: refuse a hive_node placement if the
-    -- network already has too many nodes for the current evolution.
-    if entity.name == shared.entities.hive_node then
+    -- Evolution-gated node count (startup setting hm-evolution-gate). When
+    -- on, refuse a hive_node placement if the network already has too many
+    -- nodes for the current evolution. When off, no check — the legacy
+    -- node-spam behaviour returns.
+    if entity.name == shared.entities.hive_node
+       and shared.feature_enabled("hm-evolution-gate") then
       if not pass_node_evolution_gate(entity, player_index) then return end
     end
 

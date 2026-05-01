@@ -198,10 +198,12 @@ function M.join(player)
   M.apply(player)
   refill_loadout(player)
   M.update_hive_buttons(player)
-  -- Hand out the starter hive item. Idempotent: subsequent calls are no-ops
-  -- as long as the player has any path to a hive (item / entity / pending
-  -- construction).
-  Anchor.ensure_hive_available(player)
+  -- Hand out the starter hive item only when anchor binding is on. With
+  -- binding off the hm-hive recipe is always-enabled and the player crafts
+  -- whenever they like — handing out a starter would be redundant.
+  if shared.feature_enabled("hm-anchor-binding") then
+    Anchor.ensure_hive_available(player)
+  end
   player.print({"gui.hm-hive-joined"})
 end
 

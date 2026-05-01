@@ -85,6 +85,8 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 
 ## Anchor placement
 
+All anchor-binding behavior in this section is gated on the `hm-anchor-binding` startup boolean (default `false`). Read at runtime via `shared.feature_enabled("hm-anchor-binding")` in the few places that branch on it (Force.configure's always-enabled list, Build.on_built's hive branch, Director.join's grant call, Death.on_removed's re-grant). When the setting is **off** the legacy code path runs: hm-hive is in always_enabled_recipes, placement runs the original on_hive_placed (immediate setup, recipes unlock, item refunded, previous hive destroyed via Death.destroy_previous_player_hives). When **on**:
+
 - The `hm-hive` recipe is removed from the always-enabled set and is not unlockable. Players can never craft a hive item. The only way to obtain one is via `Anchor.ensure_hive_available(player)`, called from `Director.join` and from the network-collapse pass. The function is idempotent: it inserts a single `hm-hive` item into the player's main inventory only if they currently have **no** hive item, **no** hive entity (anchor or promoted), and **no** pending construction. Re-joins, double-calls, or transient states can't produce a duplicate item.
 - The hive force is endless. When all of a player's hives die (network collapse), `Anchor.ensure_hive_available(player)` is called from the collapse handler so the player gets a fresh hive item and can re-anchor. Losing the network still costs them everything else (chest contents, creep, position) — only the right to play continues.
 - The `hm-hive` entity prototype is set `minable = nil` (or has its `minable.result` removed) once construction completes. While in construction it remains minable so the player can cancel and refund.
@@ -110,6 +112,8 @@ The hive worker is a `unit` (real Space Age small wriggler when available, base-
 - Storage merge on hive death: when a hive dies and another hive on the same network survives, the dead hive's chest contents are transferred to a surviving hive's chest before destruction (existing `release_hive_contents` is replaced by a "merge into surviving network member" path). The network only collapses (orphans destroyed, creatures disgorged) when the **last** hive dies. This makes promoted hives genuine redundancy — the network's loss condition is `forall(hives_in_network).destroyed`, not `anchor.destroyed`.
 
 ## Evolution-gated node count
+
+Gated on the `hm-evolution-gate` startup boolean (default `false`). The check lives in `Build.on_built`'s hive_node branch and is wrapped in `if shared.feature_enabled("hm-evolution-gate") then ... end`. When off, node placement runs without the evolution check.
 
 - New tunable `shared.network.evolution_step` (default `0.05`). The Nth node-equivalent placement in a network requires `enemy_force.evolution_factor >= (N - 1) * evolution_step`.
 - The count is **only** the number of `hm-hive-node` entities in the network. Hives (anchor and promoted) do not count. Promoting a node converts that node into a hive, removing one from the count.

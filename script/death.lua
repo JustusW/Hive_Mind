@@ -263,12 +263,15 @@ function M.on_removed(event)
     end
 
     -- Drop any pending-construction record so the anchor tick doesn't try
-    -- to lock-in a corpse, and re-grant a starter hive to every joined
-    -- player who lost their last hive. The grant is idempotent — players
-    -- who still have a hive get nothing.
+    -- to lock-in a corpse, and (anchor binding only) re-grant a starter
+    -- hive to every joined player who lost their last hive. The grant is
+    -- idempotent — players who still have a hive get nothing. With anchor
+    -- binding off the player crafts a new hive from the recipe instead.
     State.get().pending_anchor_constructions[entity.unit_number] = nil
-    for player_index in pairs(State.get().joined_players) do
-      Anchor.ensure_hive_available(game.get_player(player_index))
+    if shared.feature_enabled("hm-anchor-binding") then
+      for player_index in pairs(State.get().joined_players) do
+        Anchor.ensure_hive_available(game.get_player(player_index))
+      end
     end
   elseif entity.name == shared.entities.hive_node then
     Hive.untrack_node(entity)

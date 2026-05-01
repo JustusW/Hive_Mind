@@ -318,6 +318,15 @@ function shared.creature_item_name(unit_name)
   return shared.creature_item_prefix .. unit_name
 end
 
+-- Read a startup boolean. Defaults to false if the setting is not declared
+-- (e.g. a stripped-down test environment). Cheap; no caching needed.
+function shared.feature_enabled(name)
+  if not (settings and settings.startup) then return false end
+  local s = settings.startup[name]
+  if not s then return false end
+  return s.value == true
+end
+
 function shared.creature_unit_name(item_name)
   if type(item_name) ~= "string" then return nil end
   if item_name:sub(1, #shared.creature_item_prefix) ~= shared.creature_item_prefix then return nil end

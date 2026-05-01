@@ -5,15 +5,20 @@ local shared = require("shared")
 local M = {}
 
 -- Recipes that should always be available to anyone on the hive force,
--- independent of any tech. NB: shared.recipes.hive is intentionally NOT in
--- this list — the hive item is handed out exactly once per player on join
--- (Director.grant_starter_hive). Crafting more is not allowed; multi-hive
--- expansion goes through Promote Node.
-local always_enabled_recipes =
-{
-  shared.recipes.pheromones_on,
-  shared.recipes.pollution_generator
-}
+-- independent of any tech. The hm-hive recipe is conditional: only included
+-- when the anchor-binding setting is OFF. With binding ON, the hive item
+-- is handed out exactly once per player on join (Anchor.ensure_hive_available).
+local function build_always_enabled()
+  local list =
+  {
+    shared.recipes.pheromones_on,
+    shared.recipes.pollution_generator
+  }
+  if not shared.feature_enabled("hm-anchor-binding") then
+    list[#list + 1] = shared.recipes.hive
+  end
+  return list
+end
 
 -- Get or create the hivemind force. New forces are mutually friend +
 -- cease-fired with `enemy` (so recruited biters mingle with vanilla biters
@@ -75,7 +80,7 @@ function M.configure(force)
     tech.enabled = is_hive_tech(tech.name)
   end
 
-  for _, name in pairs(always_enabled_recipes) do
+  for _, name in pairs(build_always_enabled()) do
     if force.recipes[name] then force.recipes[name].enabled = true end
   end
 

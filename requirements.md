@@ -16,14 +16,16 @@ You play a hive mind, not an engineer. You direct biters instead of crafting cir
 ## Rules
 
 - Joining the hive is permanent for the session. Rejecting is also permanent — buttons never return.
-- The hive is **anchored**: every player gets one Hive item on join, places it once, and that hive cannot be mined after construction. There is no recipe to craft another. Additional hives only exist via the Promote Node action (see "Promotion").
-- A destroyed Hive releases all its stored creatures back into the world as living units. If all your hives are destroyed the network collapses, but you receive a fresh Hive item — the hive force is endless (see "Anchor placement").
+- **Hive Anchor Binding** (startup setting, default **off**) — when enabled the hive is anchored: every player gets one Hive item on join, places it once, and that hive cannot be mined after construction. There is no recipe to craft another. Additional hives only exist via the Promote Node action (see "Promotion"). When the setting is **off** the legacy behavior applies: the Hive recipe is freely available, placing a new hive destroys the previous one, and the player can re-place the hive at will.
+- A destroyed Hive releases all its stored creatures back into the world as living units. With Anchor Binding on, if all your hives are destroyed the network collapses but you receive a fresh Hive item — the hive force is endless (see "Anchor placement"). With Anchor Binding off, the player just crafts another from the recipe.
 - All hive creatures, recruited biters, and vanilla biters are friendly to each other.
 - The director can place hive buildings, place ghosts of any buildable hive item, and craft pheromones. Nothing else.
 - Placements on top of trees, rocks, or cliffs are refused — the hive does not deconstruct terrain.
 - Ghosts that can't be fulfilled (missing tech, obstruction, insufficient pollution) are destroyed rather than left lingering.
 
 ## Anchor placement
+
+This section describes behavior when the **Hive Anchor Binding** startup setting is enabled. When the setting is off the section does not apply: the Hive recipe is always available, placement is instant, the hive is freely minable, and re-placing destroys the previous hive (legacy 0.9.16 behavior).
 
 - On join you receive a single Hive item. Scout the map (you're on the god controller — fly anywhere, no time pressure) and pick your spot carefully.
 - Placing the Hive starts a **30-second construction**. A chat message warns you: "Hive construction started. It is extremely hard to move and will permanently bind your hive to this position." The construction is firm — there is no cancellation. The 30 seconds exist as a commitment window: enough time to think "wait, this is the wrong spot" before the engineer can react, but not enough time to relocate cheaply.
@@ -86,7 +88,7 @@ Each placeable item lists its pollution cost in its tooltip.
 - Connected hives and nodes share one resource pool.
 - Loading a save must preserve or recover hive/node connections; existing hives and nodes in the world remain connected to the construction, recruitment, and storage network.
 - **Node placement exception**: a Hive Node can be placed as long as it would connect to the network — i.e., the new node's own 50×50 box would overlap an existing hive or node — even if the placement position itself sits just outside the current network's build zone. All other buildings still require the placement position to be inside the network's build zone. Pheromone Vents are exempt — they are buildable anywhere.
-- **Evolution-gated node count**: each network's Nth node placement requires the surface's enemy evolution factor to be at or above a threshold. The first node is free; each subsequent node demands more evolution. The engineer's pollution and nest kills drive evolution, so node growth self-paces against engineer progress — you can't node-spam at minute zero, and a runaway engineer unlocks a runaway hive. **Hives do not count toward the node limit** — only Hive Node entities do. A promoted hive removes a node from the count and adds an unlimited hive in its place; you can keep growing nodes around it.
+- **Evolution-gated node count** (startup setting **Hive Evolution Gate**, default **off**): when enabled, each network's Nth node placement requires the surface's enemy evolution factor to be at or above a threshold. The first node is free; each subsequent node demands more evolution. The engineer's pollution and nest kills drive evolution, so node growth self-paces against engineer progress — you can't node-spam at minute zero, and a runaway engineer unlocks a runaway hive. **Hives do not count toward the node limit** — only Hive Node entities do. A promoted hive removes a node from the count and adds an unlimited hive in its place; you can keep growing nodes around it.
 - A single purple **creep** tile fills the same box outward in Chebyshev rings. Biters move faster on creep. The outermost ~2 rings are progressively patchy, and a single sparse ring extends just past the box, so the silhouette has a slightly irregular, organic edge instead of a perfect square. The fuzzed pattern is stable across save/load.
 
 ## Recruitment
