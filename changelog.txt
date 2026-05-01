@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.23
+Date: 2026-05-01
+  Bugfixes:
+    - Fixed two non-recoverable crashes introduced by the 0.9.22 profiler-precision telemetry change. LuaProfiler in Factorio 2.0 has no start() method (the previous build called it on every measured handler) and its methods are bound to the userdata, so they take no implicit self argument (the previous build called them with colon syntax, passing self and tripping argument-count errors). The telemetry layer now uses a scratch profiler restart/stop'd around each measured call and accumulates into the per-category profiler via dot-syntax add. Without this fix, 0.9.22 crashed on the first on_tick or on_player_created.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.22
 Date: 2026-05-01
   Optimisations:
