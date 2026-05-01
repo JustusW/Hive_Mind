@@ -86,7 +86,12 @@ local function get_accumulator(category)
   local p = profilers[category]
   if p then return p end
   if not (helpers and helpers.create_profiler) then return nil end
-  p = helpers.create_profiler(true)  -- stopped, value 0
+  -- Don't trust the (stopped) parameter — empirically the resulting profiler
+  -- still showed "Elapsed:" (running) and tracked wall time. Create it,
+  -- explicitly stop, reset to 0.
+  p = helpers.create_profiler()
+  p.stop()
+  p.reset()
   profilers[category] = p
   return p
 end
@@ -100,7 +105,12 @@ function M.measure(category, fn, ...)
   local result = fn(...)
   scratch.stop()                             -- pause; value = duration of fn
   local accum = get_accumulator(category)
-  if accum then accum.add(scratch) end
+  if accum then
+    accum.add(scratch)
+    accum.stop()  -- paranoia: keep accumulator paused so its tostring is
+                  -- "Duration: X" (just the added value), not "Elapsed: X"
+                  -- (added value + wall time since accum was last running)
+  end
   return result
 end
 
@@ -197,8 +207,16 @@ end
 -- 2.0 LuaProfiler methods are bound to the userdata (the engine threads
 -- self automatically), so we call with dot syntax — colon would pass an
 -- extra argument and trip "Expected N arguments but N+1 were given".
+--
+-- We follow reset() with stop() because reset alone leaves the running
+-- state alone, and the accumulator must stay stopped between flushes (its
+-- value should reflect only what was add()ed in this window, not the
+-- wall time since the last reset).
 local function reset_profilers()
-  for _, p in pairs(profilers) do p.reset() end
+  for _, p in pairs(profilers) do
+    p.reset()
+    p.stop()
+  end
 end
 
 -- Append a [perf] line for the cadence window and reset accumulators.
