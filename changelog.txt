@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.18
+Date: 2026-05-01
+  Bugfixes:
+    - Mod settings (Hive Anchor Binding, Hive Evolution Gate) now actually appear in the Mod settings menu. The 0.9.17 release zip was built without settings.lua because that file wasn't registered in the build's explicit includes list, so the startup settings entries were invisible. Settings.lua is now in the zip, and the build script asserts at packaging time that every top-level Lua file is part of the release so this kind of omission can't recur silently.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.17
 Date: 2026-05-01
   Major Features:
