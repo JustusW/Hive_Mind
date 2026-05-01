@@ -63,11 +63,16 @@ local function ensure_label(player)
   end
   local label = flow[LABEL_NAME]
   if label and label.valid then return label end
-  return flow.add{
+  label = flow.add{
     type    = "label",
     name    = LABEL_NAME,
     caption = ""
   }
+  -- 2× default size so the read-out is legible without squinting at the
+  -- top bar. heading-1-label is the largest built-in label style; if a
+  -- future Factorio version drops it, fall through silently.
+  pcall(function() label.style.font = "heading-1-label" end)
+  return label
 end
 
 local function destroy_label(player)

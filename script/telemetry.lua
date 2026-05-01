@@ -190,11 +190,24 @@ function M.flush_perf(tick)
   local total = 0
   for _, v in pairs(timings) do total = total + v end
 
-  -- Stable column order so the line is greppable.
-  local cols = {"recruit", "absorb", "supremacy", "workers", "creep",
-                "labels", "loadout", "supply", "pheromone", "anchor"}
+  -- Print every category that accumulated time this window plus a stable
+  -- "core" set so the line shape stays predictable. Sort alphabetically
+  -- after the core columns for greppability.
+  local core = {"recruit", "absorb", "supremacy", "workers", "creep",
+                "labels", "loadout", "supply", "pheromone", "anchor",
+                "scan", "debug", "restore_mined"}
+  local seen = {}
   local parts = {}
-  for _, k in ipairs(cols) do
+  for _, k in ipairs(core) do
+    seen[k] = true
+    parts[#parts + 1] = k .. "_ms=" .. fmt_ms(timings[k])
+  end
+  local extras = {}
+  for k in pairs(timings) do
+    if not seen[k] then extras[#extras + 1] = k end
+  end
+  table.sort(extras)
+  for _, k in ipairs(extras) do
     parts[#parts + 1] = k .. "_ms=" .. fmt_ms(timings[k])
   end
 

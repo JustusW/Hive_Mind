@@ -32,13 +32,14 @@ local Promote   = require("script.promote")
 -- ── Tick scheduler ───────────────────────────────────────────────────────────
 
 local function on_tick(event)
-  Director.restore_mined_entities()
+  Telemetry.measure("restore_mined", Director.restore_mined_entities)
 
   local tick = event.tick
   -- Unified per-member scan replaces the old intervals.recruit + intervals.absorb
   -- cadences; recruit and absorb fire from inside Scan.tick on a work-spread
-  -- rotation.
-  Scan.tick(tick)
+  -- rotation. The wrapper time covers the dispatcher overhead — recruit_ms
+  -- and absorb_ms inside it cover the bulk work separately.
+  Telemetry.measure("scan", Scan.tick, tick)
 
   if tick % shared.intervals.supply    == 0 then Telemetry.measure("supply",    Lab.tick_supply)             end
   if tick % shared.intervals.workers   == 0 then Telemetry.measure("workers",   Workers.tick)                end
@@ -52,7 +53,7 @@ local function on_tick(event)
   -- scan cadence because Anchor.tick is independent of recruit timing.
   if tick % 60                         == 0 then Telemetry.measure("anchor",    Anchor.tick)                 end
 
-  Debug.tick()
+  Telemetry.measure("debug", Debug.tick)
 
   -- Flush perf + recruit lines on the unified scan cadence.
   if tick % shared.intervals.scan == 0 then
@@ -122,15 +123,22 @@ remote.add_interface("hive_reboot",
 
 local e = defines.events
 
+-- Tiny helper: wrap an event handler so its time accumulates under
+-- `category` in the perf log. The handler is called with the original
+-- event verbatim.
+local function timed(category, handler)
+  return function(ev) Telemetry.measure(category, handler, ev) end
+end
+
 script.on_event(e.on_tick, on_tick)
 
 -- Player lifecycle / GUI / mining lockdown
-script.on_event(e.on_player_created,                Director.on_player_created)
-script.on_event(e.on_player_respawned,              Director.on_player_respawned)
-script.on_event(e.on_gui_click,                     Director.on_gui_click)
-script.on_event(e.on_gui_opened,                    Director.on_gui_opened)
-script.on_event(e.on_player_mined_entity,           Director.on_player_mined_entity)
-script.on_event(e.on_player_mined_item,             Director.on_player_mined_item)
+script.on_event(e.on_player_created,      timed("on_player_created",   Director.on_player_created))
+script.on_event(e.on_player_respawned,    timed("on_player_respawned", Director.on_player_respawned))
+script.on_event(e.on_gui_click,           timed("on_gui_click",        Director.on_gui_click))
+script.on_event(e.on_gui_opened,          timed("on_gui_opened",       Director.on_gui_opened))
+script.on_event(e.on_player_mined_entity, timed("on_player_mined_entity", Director.on_player_mined_entity))
+script.on_event(e.on_player_mined_item,   timed("on_player_mined_item",   Director.on_player_mined_item))
 -- Deconstruction is blocked at the prototype level via the
 -- "not-deconstructable" flag (data/prototypes/entities.lua → lock_decon).
 -- No script handler needed.
@@ -139,9 +147,12 @@ script.on_event(e.on_player_mined_item,             Director.on_player_mined_ite
 local function clear_forbidden(event, inventory_id)
   Director.clear_forbidden_inventory(game.get_player(event.player_index), inventory_id)
 end
-script.on_event(e.on_player_gun_inventory_changed,   function(ev) clear_forbidden(ev, defines.inventory.character_guns)  end)
-script.on_event(e.on_player_ammo_inventory_changed,  function(ev) clear_forbidden(ev, defines.inventory.character_ammo)  end)
-script.on_event(e.on_player_armor_inventory_changed, function(ev) clear_forbidden(ev, defines.inventory.character_armor) end)
+script.on_event(e.on_player_gun_inventory_changed,
+  timed("on_gun_inv",   function(ev) clear_forbidden(ev, defines.inventory.character_guns)  end))
+script.on_event(e.on_player_ammo_inventory_changed,
+  timed("on_ammo_inv",  function(ev) clear_forbidden(ev, defines.inventory.character_ammo)  end))
+script.on_event(e.on_player_armor_inventory_changed,
+  timed("on_armor_inv", function(ev) clear_forbidden(ev, defines.inventory.character_armor) end))
 
 -- on_player_crafted_item fan-out. Each handler filters by the recipe's
 -- result item and ignores everything else.
@@ -149,15 +160,15 @@ local function on_crafted_dispatch(event)
   Pheromone.on_crafted(event)
   Promote.on_crafted(event)
 end
-script.on_event(e.on_player_crafted_item, on_crafted_dispatch)
+script.on_event(e.on_player_crafted_item, timed("on_crafted", on_crafted_dispatch))
 
 -- Build pipeline. Worker materialisations come back through script_raised_built
 -- with player_index = nil; Build.on_built no-ops the cost branches in that
 -- case. on_robot_built_entity is no longer hooked — there are no
 -- construction-robots in the hive, ghosts are fulfilled by the Workers
 -- dispatcher instead.
-script.on_event(e.on_built_entity,        Build.on_built)
-script.on_event(e.script_raised_built,    Build.on_built)
+script.on_event(e.on_built_entity,     timed("on_built",           Build.on_built))
+script.on_event(e.script_raised_built, timed("on_script_built",    Build.on_built))
 
 -- Removal pipeline. Worker deaths route into Workers so the dispatcher can
 -- requeue an in-flight job whose unit got killed.
@@ -165,6 +176,6 @@ local function on_removed(event)
   Workers.on_worker_died(event.entity)
   Death.on_removed(event)
 end
-script.on_event(e.on_entity_died,         on_removed)
-script.on_event(e.on_robot_mined_entity,  on_removed)
-script.on_event(e.script_raised_destroy,  on_removed)
+script.on_event(e.on_entity_died,        timed("on_entity_died",      on_removed))
+script.on_event(e.on_robot_mined_entity, timed("on_robot_mined",      on_removed))
+script.on_event(e.script_raised_destroy, timed("on_script_destroy",   on_removed))
