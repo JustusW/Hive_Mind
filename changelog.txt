@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.19
+Date: 2026-05-01
+  Bugfixes:
+    - Fixed a non-recoverable crash when any force marked a hive-side entity for deconstruction (typically AutoDeconstruct or a non-hive multiplayer player). The fix replaces the script-side cancel-on-mark handler with the standard "not-deconstructable" prototype flag on every hive-side entity (hive, hive node, hive lab, pheromone vent, pollution generator). The engine refuses the mark up front, so there's no race for a script handler to lose against Factorio 2.0's stricter cancel_deconstruction validation.
+---------------------------------------------------------------------------------------------------
 Version: 0.9.18
 Date: 2026-05-01
   Bugfixes:
