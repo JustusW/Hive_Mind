@@ -6,6 +6,10 @@ Date: 2026-05-01
   Optimisations:
     - Creep growth no longer pays per-tick cost on settled hives. Once a hive or node has filled its extension ring (creep_layer > max_radius + 1) its slot in the every-3-ticks Creep.tick loop short-circuits.
     - Per-creature pollution value lookup is now memoised by unit name. The function reads prototypes.entity[name].absorptions_to_join_attack.pollution and is called inside the convert-creatures and pollution-capacity loops on every charge; the prototype data doesn't change at runtime so a session-lifetime cache is safe.
+  Bugfixes:
+    - Fixed a non-recoverable crash on Hive Node placement when the Hive Evolution Gate setting was enabled. Factorio 2.0 / Space Age moved evolution to per-surface state and removed the LuaForce.evolution_factor scalar; the gate now reads it via LuaForce:get_evolution_factor(surface).
+    - Fixed a non-recoverable crash on hand-crafting completion when both Pheromone and Promote Node handlers were registered. The shared event.item_stack handle was cleared by the first handler and the second handler raised on .name access. Both handlers now check valid_for_read before reading the stack.
+    - Fixed a multi-second freeze when triggering Release Pheromones on a network with a large stored-creature stockpile. The disgorge previously released every stored creature in one tick (one find_non_colliding_position + create_entity per creature). It now releases up to target_size * 3 creatures per burst; the rest stay in storage for future bursts.
 ---------------------------------------------------------------------------------------------------
 Version: 0.9.19
 Date: 2026-05-01
