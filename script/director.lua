@@ -322,8 +322,14 @@ function M.on_marked_for_deconstruction(event)
   -- game.forces is cheap (a handful of forces in any save) and lets us
   -- handle multiplayer where a non-hive player on `player` (or any other
   -- force) tries to decon a hive-side entity.
+  --
+  -- pcall: Factorio 2.0 raises if `force` is not allowed to cancel the
+  -- mark on this specific entity (e.g. calling cancel_deconstruction(player)
+  -- on a hivemind-force entity that has no player-scheduled mark). The
+  -- raise is benign — it just means that force had nothing to cancel — so
+  -- swallow it and keep iterating.
   for _, force in pairs(game.forces) do
-    entity.cancel_deconstruction(force)
+    pcall(entity.cancel_deconstruction, entity, force)
   end
 
   if event.player_index then
