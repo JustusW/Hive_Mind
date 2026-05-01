@@ -72,15 +72,35 @@ local function arr_to_str(arr)
   return "[" .. table.concat(parts, ",") .. "]"
 end
 
--- Wrap a call so its wallclock cost is added to `category`.
+-- One stopped profiler per category, lazily created. We keep accumulating
+-- elapsed time across many start/stop cycles, then read+reset on flush.
+-- helpers.create_profiler is nanosecond-precision and replaces the old
+-- os.clock approach (15 ms granularity on Windows masked all our costs as
+-- 0 even though the mod was at 35 ms/tick).
+local profilers = {}
+
+local function get_profiler(category)
+  local p = profilers[category]
+  if p then return p end
+  if not (helpers and helpers.create_profiler) then return nil end
+  -- `true` = create in stopped state. start()/stop() then bracket each call.
+  p = helpers.create_profiler(true)
+  profilers[category] = p
+  return p
+end
+
+-- Wrap a call so its wallclock cost is added to `category`. Falls through
+-- transparently if helpers.create_profiler is unavailable for any reason.
 function M.measure(category, fn, ...)
   if not fn then return end
-  local t0 = os and os.clock and os.clock() or 0
+  local p = get_profiler(category)
+  if not p then return fn(...) end
+  -- Profiler is a stopwatch: start() resumes counting, stop() pauses but
+  -- keeps the accumulated value. We never reset between calls within a
+  -- flush window, only on flush. flush_perf calls reset_profilers().
+  p:start()
   local result = fn(...)
-  if os and os.clock then
-    local dt = os.clock() - t0
-    timings[category] = (timings[category] or 0) + dt
-  end
+  p:stop()
   return result
 end
 
@@ -173,13 +193,21 @@ function M.flush_recruit(tick)
   probe_counts.ag_pcall_err      = 0
 end
 
+-- Reset every profiler so the next flush window starts fresh.
+local function reset_profilers()
+  for _, p in pairs(profilers) do p:reset() end
+end
+
 -- Append a [perf] line for the cadence window and reset accumulators.
+-- Uses a LocalisedString so LuaProfiler values render via their built-in
+-- formatter (e.g. "145.872 ms" / "32.451 µs"). The unit varies and is
+-- printed inline so analysis tools need to handle "value unit" pairs.
 function M.flush_perf(tick)
   if not shared.feature_enabled("hm-debug-telemetry") then
     -- Still reset accumulators so disabled telemetry doesn't slowly leak
     -- counters that would suddenly dump in one big number if the user
     -- toggles the setting on mid-session.
-    timings = {}
+    reset_profilers()
     scanned = 0
     for k in pairs(op_counts) do op_counts[k] = 0 end
     for k in pairs(supremacy_counts) do
@@ -187,45 +215,45 @@ function M.flush_perf(tick)
     end
     return
   end
-  local total = 0
-  for _, v in pairs(timings) do total = total + v end
 
-  -- Print every category that accumulated time this window plus a stable
-  -- "core" set so the line shape stays predictable. Sort alphabetically
-  -- after the core columns for greppability.
+  -- Stable "core" categories first, then any extras alphabetically.
   local core = {"recruit", "absorb", "supremacy", "workers", "creep",
                 "labels", "loadout", "supply", "pheromone", "anchor",
                 "scan", "debug", "restore_mined"}
   local seen = {}
-  local parts = {}
-  for _, k in ipairs(core) do
-    seen[k] = true
-    parts[#parts + 1] = k .. "_ms=" .. fmt_ms(timings[k])
-  end
+  for _, k in ipairs(core) do seen[k] = true end
   local extras = {}
-  for k in pairs(timings) do
+  for k in pairs(profilers) do
     if not seen[k] then extras[#extras + 1] = k end
   end
   table.sort(extras)
-  for _, k in ipairs(extras) do
-    parts[#parts + 1] = k .. "_ms=" .. fmt_ms(timings[k])
-  end
 
-  local line = string.format(
-    "[perf] tick=%d scanned=%d %s total_ms=%s find=%d recruit=%d absorb=%d damage=%d dispatch=%d",
-    tick,
-    scanned,
-    table.concat(parts, " "),
-    fmt_ms(total),
+  -- Build a localised-string list. First element "" means concatenate the
+  -- subsequent fragments. Strings are inserted as-is; LuaProfiler instances
+  -- get rendered via their __tostring equivalent.
+  local line = {""}
+  table.insert(line, string.format("[perf] tick=%d scanned=%d", tick, scanned))
+  local function emit(category)
+    table.insert(line, " " .. category .. "_ms=")
+    if profilers[category] then
+      table.insert(line, profilers[category])
+    else
+      table.insert(line, "0")
+    end
+  end
+  for _, k in ipairs(core)   do emit(k) end
+  for _, k in ipairs(extras) do emit(k) end
+  table.insert(line, string.format(
+    " find=%d recruit=%d absorb=%d damage=%d dispatch=%d\n",
     op_counts.find     or 0,
     op_counts.recruit  or 0,
     op_counts.absorb   or 0,
     op_counts.damage   or 0,
     op_counts.dispatch or 0
-  )
-  helpers.write_file("hm-debug.txt", line .. "\n", true)
+  ))
+  helpers.write_file("hm-debug.txt", line, true)
 
-  -- Supremacy probe line.
+  -- Supremacy probe line — pure counters, no profilers, plain format.
   local sup = string.format(
     "[supremacy] tick=%d cache=%d rebuilds=%d added=%d damages=%d killed=%d off_creep=%d no_unit_number=%d",
     tick,
@@ -239,7 +267,7 @@ function M.flush_perf(tick)
   )
   helpers.write_file("hm-debug.txt", sup .. "\n", true)
 
-  timings = {}
+  reset_profilers()
   scanned = 0
   op_counts.find     = 0
   op_counts.recruit  = 0
