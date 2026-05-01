@@ -48,8 +48,10 @@ Each placeable item lists its pollution cost in its tooltip.
 
 ## Crafting menu
 
-- Hive buildings, including Pheromone Vent — intermediate products tab.
-- Release Pheromones recipe and Pheromone Vent mode markers (small / default / large) — production tab.
+These rules describe **recipe** placement (where the recipe shows in the crafting menu) — distinct from the item subgroup, which the director never browses because their quickbar is fixed and refilled by the loadout watchdog.
+
+- Hive building recipes, including Pheromone Vent — intermediate products tab.
+- Release Pheromones, Promote Node, and Pheromone Vent mode markers (small / default / large) — production tab.
 
 ## Pheromones
 

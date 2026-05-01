@@ -129,6 +129,7 @@ end
 -- the current bucket state directly from `state.recruit_buckets` so the line
 -- always reflects ground truth at flush time.
 function M.flush_recruit(tick)
+  if not shared.feature_enabled("hm-debug-telemetry") then return end
   local s = State.get()
   local buckets = s.recruit_buckets or {}
 
@@ -174,6 +175,18 @@ end
 
 -- Append a [perf] line for the cadence window and reset accumulators.
 function M.flush_perf(tick)
+  if not shared.feature_enabled("hm-debug-telemetry") then
+    -- Still reset accumulators so disabled telemetry doesn't slowly leak
+    -- counters that would suddenly dump in one big number if the user
+    -- toggles the setting on mid-session.
+    timings = {}
+    scanned = 0
+    for k in pairs(op_counts) do op_counts[k] = 0 end
+    for k in pairs(supremacy_counts) do
+      if k ~= "cache_size" then supremacy_counts[k] = 0 end
+    end
+    return
+  end
   local total = 0
   for _, v in pairs(timings) do total = total + v end
 

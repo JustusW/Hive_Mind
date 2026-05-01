@@ -24,5 +24,15 @@ data:extend(
     setting_type  = "startup",
     default_value = false,
     order         = "b"
+  },
+  -- Debug telemetry. When off, Telemetry.flush_* is a no-op and the
+  -- script-output/hm-debug.txt file stays untouched. Default off so end
+  -- users get a quiet save folder; turn on for tuning sessions.
+  {
+    type          = "bool-setting",
+    name          = "hm-debug-telemetry",
+    setting_type  = "startup",
+    default_value = false,
+    order         = "z"
   }
 })

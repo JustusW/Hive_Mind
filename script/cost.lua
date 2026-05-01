@@ -16,14 +16,26 @@ local M = {}
 
 -- ── Pollution value of a creature ─────────────────────────────────────────────
 
+-- Memoised by unit name. Prototype data doesn't change at runtime, so a
+-- session-lifetime cache is safe; both `convert_creatures` and
+-- `pollution_capacity` call this in tight loops during heavy recruitment.
+local pollution_value_cache = {}
+
 function M.unit_pollution_value(unit_name)
+  if not unit_name then return 1 end
+  local cached = pollution_value_cache[unit_name]
+  if cached ~= nil then return cached end
+
+  local value = 1
   local proto = prototypes.entity[unit_name]
-  if not proto then return 1 end
-  local absorb = proto.absorptions_to_join_attack
-  if absorb and absorb.pollution then
-    return math.max(1, math.floor(absorb.pollution))
+  if proto then
+    local absorb = proto.absorptions_to_join_attack
+    if absorb and absorb.pollution then
+      value = math.max(1, math.floor(absorb.pollution))
+    end
   end
-  return 1
+  pollution_value_cache[unit_name] = value
+  return value
 end
 
 -- ── Build cost ───────────────────────────────────────────────────────────────

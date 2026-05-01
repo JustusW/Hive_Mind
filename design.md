@@ -52,7 +52,7 @@ Color anchors: hive = orange-red, hive node = teal, hive lab = purple, hive stor
 
 Hive tracking is backed by runtime state but treats actual `hm-hive` and `hm-hive-node` entities on the hive force as authoritative recovery data. On load/config changes and before network-sensitive scans, the runtime reconciles state from the world: missing hives are linked back to a player bucket, missing nodes are restored to `hive_nodes`, invalid references are removed, and hive storage records are recreated without discarding valid chests. This keeps construction range, recruitment, creep growth, and one-hive replacement working after save/load.
 
-Crafting menu placement: the pheromone burst recipe and pheromone-vent mode markers (`hm-pheromone-mode-{small,default,large}`) live in the production tab via the `production-machine` subgroup. Every other hive recipe (including `hm-pheromone-vent`) lives in the intermediate products tab via the `intermediate-product` subgroup.
+Crafting menu placement: the pheromone burst recipe, the Promote Node recipe (`hm-promote-node`), and the pheromone-vent mode markers (`hm-pheromone-mode-{small,default,large}`) live in the production tab via the `production-machine` subgroup. Every other hive recipe (including `hm-pheromone-vent`) lives in the intermediate products tab via the `intermediate-product` subgroup. Item subgroups (e.g. `hm-hive` item is `defensive-structure`) are not constrained to match their recipes; the director's quickbar is fixed and refilled by the loadout watchdog, so item subgroups affect nothing the player browses.
 
 The `Release Pheromones` recipe (`hm-pheromones-on`) is the player-facing trigger for the single-shot pheromone burst (see "Player pheromone burst"). It still produces an `hm-pheromones` item as a craft result, but the item is consumed immediately on receipt and exists only because Factorio recipes need a result. There is no Withdraw recipe — the burst is bounded and re-crafting cancels.
 
@@ -199,6 +199,7 @@ Priority when picking the destination of a recruited biter:
 ## Build cost
 
 - `shared.build_costs[entity_name]` is an explicit override table for hive-tier entities.
+- `Cost.unit_pollution_value(unit_name)` is memoised by name. Prototype data doesn't change at runtime, so the lookup of `prototypes.entity[name].absorptions_to_join_attack.pollution` runs at most once per unit name per session. Called from `convert_creatures` and `pollution_capacity` — both hot paths during high-throughput recruitment.
 - Anything else: `cost = sum(ingredient.amount * shared.item_pollution_factors[ingredient.name])` from the recipe that produces the entity's place-item.
 - For spawners and worms, the cost is keyed on the proxy entity. The post-swap real entity does not re-charge.
 
@@ -232,6 +233,7 @@ Priority when picking the destination of a recruited biter:
 - Cursor (`creep_layer`, `creep_step`) lives on the hive's storage record and on each hive_node's record.
 - Water and void terminate growth at that tile but do not stop the ring.
 - Edge fuzzing: a deterministic per-tile hash (`tile_noise(tx, ty)` over world coordinates) gates placement on the outermost rings so the silhouette breaks free of a perfect square without producing fingers. Interior layers (layer ≤ max_radius − 2) always place. Layer max_radius − 1 places at ~90%, layer max_radius at ~65%, and a single extension ring at max_radius + 1 places at ~30%. The hash is pure over (tx, ty), so save/load reproduces the same edge pattern; growth stops one ring beyond max_radius.
+- Once a hive or node's cursor passes the extension ring (`creep_layer > max_radius + 1`), `Creep.tick` short-circuits its iteration for that member — fully-grown rings cost nothing in the tick loop. Without this, the outer loop kept walking every hive on every 3-tick tick even though `place_organic_creep` itself returned immediately.
 
 ## Hive Supremacy
 
@@ -309,7 +311,7 @@ When `hm-hive-supremacy` is researched, a damage tick inflicts damage on anythin
 
 ## Telemetry
 
-Two log lines, both gated on the existing Debug enable flag, written to `script-output/hm-debug.txt`.
+Two log lines, both gated on the `hm-debug-telemetry` startup setting (default **off**), written to `script-output/hm-debug.txt`. The setting is read via `shared.feature_enabled("hm-debug-telemetry")` at flush time so end users get a quiet save folder by default; turn it on for tuning sessions.
 
 ```
 [recruit] tick=N networks=K tokens=[t1,t2,...] R=[r1,r2,...] spawners=[s1,s2,...] group=G trickle=T skipped=S

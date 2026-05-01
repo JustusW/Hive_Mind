@@ -140,12 +140,23 @@ function M.tick()
   local hive_r        = shared.creep_radius.hive
   local node_r        = shared.creep_radius.hive_node
 
+  -- A member is "fully grown" once its cursor passes the extension ring
+  -- (max_radius + 1). place_organic_creep already returns immediately in
+  -- that case, but the outer-loop call still costs a function frame and a
+  -- record lookup per hive every 3 ticks. Short-circuit here so settled
+  -- networks pay nothing.
+  local function is_fully_grown(record, max_radius)
+    return record
+       and record.creep_layer ~= nil
+       and record.creep_layer > max_radius + 1
+  end
+
   for _, hive in pairs(Hive.all()) do
     local record = Hive.get_storage(hive)
     -- Skip hives still in their 30-second anchor construction window. Creep
     -- doesn't spread until the hive is "live"; this gives the player a
     -- visual cue that the construction has completed.
-    if record and not Anchor.is_building(record) then
+    if record and not Anchor.is_building(record) and not is_fully_grown(record, hive_r) then
       local placed = place_organic_creep(hive, record, hive_r, hive_attempts)
       if placed then
         local tech = hive.force.technologies[shared.technologies.hive_labs]
@@ -161,7 +172,7 @@ function M.tick()
   local s = State.get()
   for _, node_data in pairs(s.hive_nodes) do
     local node = node_data.entity
-    if node and node.valid then
+    if node and node.valid and not is_fully_grown(node_data, node_r) then
       place_organic_creep(node, node_data, node_r, node_attempts)
     end
   end
