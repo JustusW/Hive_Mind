@@ -260,7 +260,16 @@ end
 local function pass_node_evolution_gate(entity, player_index)
   if not (entity and entity.valid) then return true end
   local enemy = Force.get_enemy()
-  local current_evo = enemy and enemy.evolution_factor or 0
+  -- Factorio 2.0 / Space Age: evolution is per-surface and queried via
+  -- LuaForce:get_evolution_factor(surface). The old per-force scalar
+  -- (`force.evolution_factor`) was removed and now raises on access. Fall
+  -- back to 0 if the API isn't there for any reason (older runtime, missing
+  -- surface).
+  local current_evo = 0
+  if enemy and entity.surface then
+    local ok, value = pcall(enemy.get_evolution_factor, enemy, entity.surface)
+    if ok and type(value) == "number" then current_evo = value end
+  end
 
   -- Count hive_node entities already in this network. Hives don't count.
   local existing = 0
