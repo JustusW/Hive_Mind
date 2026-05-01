@@ -72,25 +72,15 @@ local function arr_to_str(arr)
   return "[" .. table.concat(parts, ",") .. "]"
 end
 
--- LuaProfiler in 2.0 has no `start`, only `reset` / `restart` / `stop` /
--- `add` / `divide`. To accumulate per-call elapsed time into a category
--- bucket we keep two profilers per measurement:
---   * `scratch` (single, shared) — restart()ed before each fn call, stopped
---     after, so its value holds JUST that call's duration.
---   * `profilers[category]` — a stopped accumulator created at value 0;
---     we `:add(scratch)` after each call so total elapsed time per
---     category accumulates over the flush window. flush_perf reads them
---     into a localised string and then `:reset()`s them.
+-- One stopped accumulator per category, lazily created. Each `measure`
+-- call creates a fresh scratch profiler that lives for exactly one fn
+-- invocation, then is added into the accumulator. The "shared scratch
+-- with restart()" pattern produced bogus accumulator values (a 1-second
+-- flush window reported 87 seconds across multiple categories), strongly
+-- suggesting one of restart/stop/add isn't doing what the docs claim
+-- when called via dot syntax. Fresh-per-call removes that ambiguity at
+-- the cost of one allocation per measure.
 local profilers = {}
-local scratch_profiler  -- created lazily; one shared instance is enough.
-
-local function ensure_scratch()
-  if scratch_profiler then return scratch_profiler end
-  if not (helpers and helpers.create_profiler) then return nil end
-  scratch_profiler = helpers.create_profiler()  -- running by default; we
-                                                -- `:restart()` per call
-  return scratch_profiler
-end
 
 local function get_accumulator(category)
   local p = profilers[category]
@@ -105,11 +95,10 @@ end
 -- transparently if helpers.create_profiler is unavailable for any reason.
 function M.measure(category, fn, ...)
   if not fn then return end
-  local scratch = ensure_scratch()
-  if not scratch then return fn(...) end
-  scratch.restart()           -- reset + start; value=0 and running
+  if not (helpers and helpers.create_profiler) then return fn(...) end
+  local scratch = helpers.create_profiler()  -- runs from creation
   local result = fn(...)
-  scratch.stop()              -- pause; value = duration of fn
+  scratch.stop()                             -- pause; value = duration of fn
   local accum = get_accumulator(category)
   if accum then accum.add(scratch) end
   return result
