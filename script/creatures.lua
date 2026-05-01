@@ -89,7 +89,12 @@ local function active_pheromone(s)
   return s.active_pheromone
 end
 
-local function disgorge_hive_units(hive, target_position, hive_force)
+-- `cap` (optional) bounds total creatures released across all stacks.
+-- When passed, the function stops as soon as the cap is reached and
+-- returns; remaining stacks stay untouched in the chest. The 0.9.20 lag
+-- spike was caused by this loop calling find_non_colliding_position
+-- thousands of times when a stocked-up player hit Release Pheromones.
+local function disgorge_hive_units(hive, target_position, hive_force, cap)
   -- Read from the network's primary chest, not the per-hive chest. All
   -- absorbed creatures live in one place at the network level (see
   -- Network.primary_chest); reading the local chest would miss everything
@@ -99,13 +104,16 @@ local function disgorge_hive_units(hive, target_position, hive_force)
   local inv = chest.get_inventory(defines.inventory.chest)
   if not inv then return end
 
+  local total_spawned = 0
   for i = 1, #inv do
+    if cap and total_spawned >= cap then break end
     local stack = inv[i]
     if stack and stack.valid_for_read then
       local item_name = stack.name
       local unit_name = shared.creature_unit_name(item_name)
       if unit_name and prototypes.entity[unit_name] then
         local count = stack.count
+        if cap then count = math.min(count, cap - total_spawned) end
         local spawned = 0
         for _ = 1, count do
           local pos = hive.surface.find_non_colliding_position(unit_name, hive.position, 12, 0.5)
@@ -118,6 +126,7 @@ local function disgorge_hive_units(hive, target_position, hive_force)
             }
             if unit and unit.valid then
               spawned = spawned + 1
+              total_spawned = total_spawned + 1
               command_unit_to_position(unit, target_position)
             end
           end
@@ -434,10 +443,16 @@ function M.recruit_at_member(entity, kind, ctx)
        and entity.surface
        and entity.surface.index == ctx.pheromone_burst.surface_index
        and Pheromone.consume_disgorge_flag(ctx.pheromone_burst) then
+      -- Cap the disgorge so a stocked-up chest doesn't lock the game on
+      -- find_non_colliding_position. target_size × factor is enough to
+      -- fill the burst with margin; rest stays in storage.
+      local target  = ctx.pheromone_burst.target_size or 1
+      local factor  = (shared.pheromone_burst and shared.pheromone_burst.disgorge_cap_factor) or 3
+      local cap     = math.max(1, math.floor(target * factor + 0.5))
       for _, hive in pairs(ctx.hives) do
         if hive and hive.valid and hive.surface
            and hive.surface.index == ctx.pheromone_burst.surface_index then
-          disgorge_hive_units(hive, ctx.pheromone_burst.position, ctx.hive_force)
+          disgorge_hive_units(hive, ctx.pheromone_burst.position, ctx.hive_force, cap)
         end
       end
     end

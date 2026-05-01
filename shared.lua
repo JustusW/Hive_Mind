@@ -248,8 +248,15 @@ shared.network =
 -- diverting recruitment.
 shared.pheromone_burst =
 {
-  arrival_radius = 16,
-  timeout_ticks  = 30 * 60   -- 30 seconds at 60 UPS
+  arrival_radius     = 16,
+  timeout_ticks      = 30 * 60,   -- 30 seconds at 60 UPS
+  -- Multiplier on burst.target_size used to cap a single disgorge: the
+  -- disgorge releases up to (target_size * factor) creatures from the
+  -- network's primary chest, then stops, leaving the rest in storage.
+  -- Without a cap, a chest with thousands of stored creatures locks the
+  -- game on the find_non_colliding_position loop. 3× target_size is
+  -- enough to fill the burst with margin for arrival losses.
+  disgorge_cap_factor = 3
 }
 
 -- Pheromone Vent tunables (0.9.0). The vent attracts biters anchored to the

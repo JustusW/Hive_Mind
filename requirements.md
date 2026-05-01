@@ -57,6 +57,7 @@ These rules describe **recipe** placement (where the recipe shows in the craftin
 
 - One recipe: **Release Pheromones**. Crafting it triggers a single-shot pheromone burst at the player's position at craft completion. No item to carry around, no withdraw recipe — the burst is bounded.
 - The burst behaves like a temporary, building-less Pheromone Vent. The network's incoming biter stream (recruited and disgorged) is diverted to that position. Biters arriving at the spot attack engineer-aligned stuff there (vehicles, structures within the immediate area).
+- The disgorge releases enough stored creatures to feed the burst — a small multiple of X — not the whole stockpile. Triggering pheromones on a network with thousands of stored creatures does not dump them all in one freeze; the rest stay in storage for future bursts.
 - Once **X biters** have arrived (X = the same `attack_group_size` a default-mode Pheromone Vent uses, scaled by Attack Group Size tech), they form an autonomous attack group and disperse — the engine routes them onward toward player infrastructure.
 - Only one active pheromone burst exists at a time. Crafting **Release Pheromones** again before X have arrived **cancels** the previous gather (no group is dispatched). Crafting it after the group has already dispatched is fine — the new gather starts; the dispersed group runs its course independently.
 
