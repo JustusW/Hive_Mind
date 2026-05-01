@@ -119,6 +119,45 @@ remote.add_interface("hive_reboot",
   end
 })
 
+-- Custom command for flipping the runtime-global telemetry setting from
+-- the in-game console. The Mod-settings GUI in multiplayer often greys out
+-- runtime-global toggles for non-host clients — this command is a
+-- guaranteed-working alternative usable by anyone with admin rights (in
+-- single-player and the host always have admin).
+--
+-- Usage: /hm-telemetry on | off | status
+commands.add_command(
+  "hm-telemetry",
+  "Toggle Hive Mind Reworked debug telemetry. Usage: /hm-telemetry on|off|status",
+  function(event)
+    local player = event.player_index and game.get_player(event.player_index) or nil
+    local function reply(msg)
+      if player then player.print(msg) else print(msg) end
+    end
+    if player and not player.admin then
+      reply("/hm-telemetry: admin only.")
+      return
+    end
+    local arg = (event.parameter or ""):lower():gsub("%s+", "")
+    local current = (settings.global["hm-debug-telemetry"] or {}).value == true
+    if arg == "" or arg == "status" then
+      reply("/hm-telemetry: telemetry is currently " .. (current and "ON" or "OFF") .. ".")
+      return
+    end
+    local target
+    if arg == "on" or arg == "true" or arg == "1" then
+      target = true
+    elseif arg == "off" or arg == "false" or arg == "0" then
+      target = false
+    else
+      reply("/hm-telemetry: unknown argument '" .. arg .. "' (use on / off / status).")
+      return
+    end
+    settings.global["hm-debug-telemetry"] = {value = target}
+    reply("/hm-telemetry: telemetry " .. (target and "enabled" or "disabled") .. ".")
+  end
+)
+
 -- ── Event routing ────────────────────────────────────────────────────────────
 
 local e = defines.events

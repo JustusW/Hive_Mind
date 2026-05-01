@@ -68,6 +68,16 @@ function Get-DefaultModsPath {
   return (Get-DefaultDevModsPath)
 }
 
+# The mods folder Factorio uses when launched normally (Steam / standalone)
+# without a custom --mod-directory. On Windows that's
+# %APPDATA%\Factorio\mods. Returns $null if APPDATA isn't set (e.g. running
+# under a service account); callers should treat the result as optional.
+function Get-ProductionModsPath {
+  $appdata = $env:APPDATA
+  if (-not $appdata) { return $null }
+  return (Join-Path $appdata "Factorio\mods")
+}
+
 function Initialize-DevProfile {
   param(
     [string]$ProfileName = "gui"
