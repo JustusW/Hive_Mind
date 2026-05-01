@@ -72,19 +72,31 @@ local function arr_to_str(arr)
   return "[" .. table.concat(parts, ",") .. "]"
 end
 
--- One stopped profiler per category, lazily created. We keep accumulating
--- elapsed time across many start/stop cycles, then read+reset on flush.
--- helpers.create_profiler is nanosecond-precision and replaces the old
--- os.clock approach (15 ms granularity on Windows masked all our costs as
--- 0 even though the mod was at 35 ms/tick).
+-- LuaProfiler in 2.0 has no `start`, only `reset` / `restart` / `stop` /
+-- `add` / `divide`. To accumulate per-call elapsed time into a category
+-- bucket we keep two profilers per measurement:
+--   * `scratch` (single, shared) — restart()ed before each fn call, stopped
+--     after, so its value holds JUST that call's duration.
+--   * `profilers[category]` — a stopped accumulator created at value 0;
+--     we `:add(scratch)` after each call so total elapsed time per
+--     category accumulates over the flush window. flush_perf reads them
+--     into a localised string and then `:reset()`s them.
 local profilers = {}
+local scratch_profiler  -- created lazily; one shared instance is enough.
 
-local function get_profiler(category)
+local function ensure_scratch()
+  if scratch_profiler then return scratch_profiler end
+  if not (helpers and helpers.create_profiler) then return nil end
+  scratch_profiler = helpers.create_profiler()  -- running by default; we
+                                                -- `:restart()` per call
+  return scratch_profiler
+end
+
+local function get_accumulator(category)
   local p = profilers[category]
   if p then return p end
   if not (helpers and helpers.create_profiler) then return nil end
-  -- `true` = create in stopped state. start()/stop() then bracket each call.
-  p = helpers.create_profiler(true)
+  p = helpers.create_profiler(true)  -- stopped, value 0
   profilers[category] = p
   return p
 end
@@ -93,14 +105,13 @@ end
 -- transparently if helpers.create_profiler is unavailable for any reason.
 function M.measure(category, fn, ...)
   if not fn then return end
-  local p = get_profiler(category)
-  if not p then return fn(...) end
-  -- Profiler is a stopwatch: start() resumes counting, stop() pauses but
-  -- keeps the accumulated value. We never reset between calls within a
-  -- flush window, only on flush. flush_perf calls reset_profilers().
-  p:start()
+  local scratch = ensure_scratch()
+  if not scratch then return fn(...) end
+  scratch:restart()           -- reset + start; value=0 and running
   local result = fn(...)
-  p:stop()
+  scratch:stop()              -- pause; value = duration of fn
+  local accum = get_accumulator(category)
+  if accum then accum:add(scratch) end
   return result
 end
 
