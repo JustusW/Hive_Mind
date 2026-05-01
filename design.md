@@ -294,6 +294,7 @@ When `hm-hive-supremacy` is researched, a damage tick inflicts damage on anythin
 
 ## Performance — caching and lazy ticks
 
+- `Hive.all()`: module-local cache of the resolved hive list, populated lazily on first call after invalidation. The world-scan portion (`find_entities_filtered{name = "hm-hive", force}` per surface) runs only on a cache miss; on Space-Age saves with multiple surfaces it costs ~20 ms per call, and the function is invoked from many sites (Scan ×2 per tick, Creep, Workers, Labels, Cost, Death, Supremacy), so caching turns ~140 calls/sec into ~1 per significant world change. Invalidation is event-driven: `Hive.track`, `Hive.untrack`, and lifecycle hooks (`on_init`, `on_configuration_changed`) call `Hive.invalidate_cache()`. Cache hit still filters for `entity.valid` so a hive that died via a path that didn't go through `untrack` is dropped silently.
 - `node_data.nearest_hive_unit_number`: cache. Invalidate on hive build / death and on `on_configuration_changed`. Lazy recompute on stale.
 - `Workers.tick()`: skip when `state.worker_jobs` is empty AND no hive-force ghosts exist on any surface.
 

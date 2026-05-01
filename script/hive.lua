@@ -75,6 +75,7 @@ function M.track(player_index, entity)
   s.hives_by_player[player_index][entity.unit_number] = {entity = entity}
   local record = M.get_storage(entity)
   if record then record.owner_player_index = player_index end
+  M.invalidate_cache()
 end
 
 function M.untrack(entity)
@@ -86,6 +87,7 @@ function M.untrack(entity)
     end
   end
   s.hive_storage[entity.unit_number] = nil
+  M.invalidate_cache()
 end
 
 function M.track_node(entity)
@@ -132,32 +134,63 @@ local function add_hive(result, seen, entity)
 end
 
 -- Every valid hive across all players.
--- Wrapped in Telemetry.measure("hive_all") so the perf log shows the
--- aggregate cost across every caller per flush window — many sites
--- (Scan.tick × 2, Creep.tick, Death.collapse_orphans, Labels, Cost.consume,
--- Supremacy.tick, …) call this each tick and the per-surface
--- find_entities_filtered isn't free.
+--
+-- The world-scan part (find_entities_filtered per surface) is expensive
+-- enough that calling it on every tick across every Hive.all() call site
+-- (Scan ×2, Creep, Workers, Labels, Cost, …) was eating ~2.8 sec/sec wall
+-- time on a Space-Age save with several surfaces. The result almost never
+-- changes — only when a hive is placed, promoted, or dies — so we cache
+-- it module-locally and invalidate on those events (M.invalidate_cache,
+-- called from M.track / M.untrack / lifecycle hooks). On a cache hit we
+-- still filter for entity.valid in case something died via a path that
+-- didn't go through untrack.
+--
+-- The cache lives only in module-local Lua state, so save/load
+-- automatically starts cold. on_init and on_configuration_changed should
+-- also call M.invalidate_cache() defensively.
+local cached_hives = nil
+
+function M.invalidate_cache()
+  cached_hives = nil
+end
+
+local function rebuild_cache()
+  local s = State.get()
+  local result = {}
+  local seen = {}
+  for _, bucket in pairs(s.hives_by_player) do
+    for _, hive_data in pairs(bucket) do
+      add_hive(result, seen, hive_data.entity)
+    end
+  end
+  local hive_force = Force.get_hive()
+  if hive_force and game then
+    for _, surface in pairs(game.surfaces) do
+      local hives = surface.find_entities_filtered{
+        name  = shared.entities.hive,
+        force = hive_force,
+      }
+      for _, hive in pairs(hives) do add_hive(result, seen, hive) end
+    end
+  end
+  return result
+end
+
 function M.all()
   return Telemetry.measure("hive_all", function()
-    local s = State.get()
-    local result = {}
-    local seen = {}
-    for _, bucket in pairs(s.hives_by_player) do
-      for _, hive_data in pairs(bucket) do
-        add_hive(result, seen, hive_data.entity)
+    if cached_hives then
+      -- Filter out anything that became invalid since the last build.
+      -- Cheap (~one entry per hive in the world; most ticks it's all
+      -- valid and the loop is a flat copy).
+      local fresh = {}
+      for _, hive in ipairs(cached_hives) do
+        if hive and hive.valid then fresh[#fresh + 1] = hive end
       end
+      cached_hives = fresh
+      return cached_hives
     end
-    local hive_force = Force.get_hive()
-    if hive_force and game then
-      for _, surface in pairs(game.surfaces) do
-        local hives = surface.find_entities_filtered{
-          name = shared.entities.hive,
-          force = hive_force
-        }
-        for _, hive in pairs(hives) do add_hive(result, seen, hive) end
-      end
-    end
-    return result
+    cached_hives = rebuild_cache()
+    return cached_hives
   end)
 end
 

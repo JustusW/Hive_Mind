@@ -71,6 +71,7 @@ script.on_init(function()
   Director.update_all_hive_buttons()
   Pheromone.reset()
   Labels.cleanup_legacy_labels()
+  Hive.invalidate_cache()
 end)
 
 script.on_configuration_changed(function()
