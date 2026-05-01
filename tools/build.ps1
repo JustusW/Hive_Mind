@@ -142,6 +142,24 @@ $optional = @(
   "sound"
 )
 
+# Sanity check: every top-level *.lua file in the repo must be in the
+# explicit includes list. The "explicit includes" model keeps dev artefacts
+# out by default, but it also silently drops new entry points if you forget
+# to register them — settings.lua broke once this way. Failing here catches
+# the next omission before it ships.
+$rootLuaFiles = Get-ChildItem -LiteralPath $repoRoot -Filter "*.lua" -File -ErrorAction SilentlyContinue
+$includesSet = @{}
+foreach ($entry in $includes) { $includesSet[$entry] = $true }
+$missingLua = @()
+foreach ($file in $rootLuaFiles) {
+  if (-not $includesSet.ContainsKey($file.Name)) {
+    $missingLua += $file.Name
+  }
+}
+if ($missingLua.Count -gt 0) {
+  throw ("Top-level Lua file(s) missing from build includes: {0}. Add them to `$includes in tools/build.ps1." -f ($missingLua -join ", "))
+}
+
 $staging    = Join-Path $env:TEMP ("hm-build-" + [guid]::NewGuid().ToString("N"))
 $packageDir = Join-Path $staging $packageName
 New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
