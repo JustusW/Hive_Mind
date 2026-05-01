@@ -242,22 +242,23 @@ function M.flush_perf(tick)
   end
   table.sort(extras)
 
-  -- Build a localised-string list. First element "" means concatenate the
-  -- subsequent fragments. Strings are inserted as-is; LuaProfiler instances
-  -- get rendered via their __tostring equivalent.
-  local line = {""}
-  table.insert(line, string.format("[perf] tick=%d scanned=%d", tick, scanned))
+  -- Build a flat list of fragments first (strings + LuaProfilers), then
+  -- nest them into chunks because Factorio's localised-string parameter
+  -- limit is 20. With ~26 core profiler pairs + headers we routinely
+  -- overshoot, and write_file silently drops the line.
+  local fragments = {}
+  table.insert(fragments, string.format("[perf] tick=%d scanned=%d", tick, scanned))
   local function emit(category)
-    table.insert(line, " " .. category .. "_ms=")
+    table.insert(fragments, " " .. category .. "_ms=")
     if profilers[category] then
-      table.insert(line, profilers[category])
+      table.insert(fragments, profilers[category])
     else
-      table.insert(line, "0")
+      table.insert(fragments, "0")
     end
   end
   for _, k in ipairs(core)   do emit(k) end
   for _, k in ipairs(extras) do emit(k) end
-  table.insert(line, string.format(
+  table.insert(fragments, string.format(
     " find=%d recruit=%d absorb=%d damage=%d dispatch=%d\n",
     op_counts.find     or 0,
     op_counts.recruit  or 0,
@@ -265,7 +266,23 @@ function M.flush_perf(tick)
     op_counts.damage   or 0,
     op_counts.dispatch or 0
   ))
-  helpers.write_file("hm-debug.txt", line, true)
+
+  -- Chunk into nested localised strings. Each chunk is {"", f1, ..., f17}
+  -- (key + up to 17 params) so we stay safely under the 20-parameter
+  -- limit. The outer string is {"", chunk1, chunk2, ...} which itself has
+  -- to fit under 20; with a typical 30-fragment line we get 2 chunks.
+  local PARAM_LIMIT  = 17  -- slightly under engine's 20 to leave safety margin
+  local outer        = {""}
+  local current      = {""}
+  for _, item in ipairs(fragments) do
+    if #current - 1 >= PARAM_LIMIT then
+      outer[#outer + 1] = current
+      current = {""}
+    end
+    current[#current + 1] = item
+  end
+  if #current > 1 then outer[#outer + 1] = current end
+  helpers.write_file("hm-debug.txt", outer, true)
 
   -- Supremacy probe line — pure counters, no profilers, plain format.
   local sup = string.format(
