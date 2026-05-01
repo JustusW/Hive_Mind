@@ -98,7 +98,7 @@ These rules describe **recipe** placement (where the recipe shows in the craftin
 
 - Without pollution: a steady trickle of biters wanders into the network. Trickle rate scales with the number of spawners (any `unit-spawner`, hive-placed or wild) inside the network's combined recruit range. Default 0.05 biters per second per spawner. More spawners in range → more biters available; no spawners → no trickle.
 - The trickle pool is shared across all hives, hive nodes, and pheromone vents in the network.
-- With pollution: any biter the engine attached to an attack group is recruited immediately, no quota, on top of the trickle.
+- With pollution: any biter the engine attached to an attack group is recruited immediately, no quota, on top of the trickle. *Known gap (as of 0.9.24): attack-group detection is currently inactive — every available API path for asking "is this unit in an attack group?" raises on the running engine, so the bypass is a no-op and pollution-driven biters consume trickle tokens like the rest. Adoption of `on_unit_added_to_group` is the planned fix.*
 - Pheromones still override.
 
 ## Network collapse

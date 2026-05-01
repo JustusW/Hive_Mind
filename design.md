@@ -285,8 +285,9 @@ When `hm-hive-supremacy` is researched, a damage tick inflicts damage on anythin
 
 ### Cross-hive aggregation
 
-- Pre-bucket hives by surface once per scan tick.
-- For force=`{player, neutral}` scans (supremacy, vent intake), do one combined scan per surface; dispatch to hives in Lua. Reduces engine ↔ Lua boundary crossings.
+- Per-member `find_entities_filtered` over each member's bbox today. Engine-side spatial filter + Lua-side iteration over a small returned set; the work-spread dispatcher amortises tick cost.
+- A combined-scan-per-surface variant was considered (one `find_entities_filtered` per surface, dispatch to hives in Lua). Discarded because it returns every unit on the surface, including those nowhere near a hive — Lua iteration over a heavily-polluted save would be larger than the per-member sum, not smaller.
+- If overlap-redundancy ever shows up in a perf profile (heavy node chaining, many overlapping bboxes scanning the same zone), the right shape is **bbox-union scanning per network** (one scan over the recruit-box union, dispatch in Lua) — not per-surface. Scoped to one network at a time, bounded by the network's reach.
 
 ## Performance — node absorption
 
