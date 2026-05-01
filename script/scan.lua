@@ -45,7 +45,12 @@ local function all_members()
 end
 
 function M.tick(tick)
-  local members = all_members()
+  -- Sub-measure each phase so the perf log shows where Scan.tick time goes.
+  -- recruit/absorb are still measured separately inside the loop — they're
+  -- nested inside scan_ms but the dispatcher-only cost is
+  --   scan - (scan.members + scan.setup + scan.loop_overhead) = noise
+  -- and the three new buckets sum to roughly scan minus the inner work.
+  local members = Telemetry.measure("scan.members", all_members)
   local N = #members
   if N == 0 then return end
 
@@ -56,48 +61,42 @@ function M.tick(tick)
   local s = State.get()
   s.scan_cursor = s.scan_cursor or 0
 
-  -- Set up shared recruitment context once per tick — pheromone resolution,
-  -- force fetching, and Hive.all() are a fixed cost regardless of how many
-  -- members we process.
-  local ctx = Creatures.recruit_setup_tick()
+  local ctx = Telemetry.measure("scan.setup", Creatures.recruit_setup_tick)
   if not ctx then return end
 
-  -- Pause absorption while a player pheromone burst is live (was the old
-  -- ctx.pheromone_player rule; ctx.pheromone_burst is the new singleton).
   local absorb_paused = ctx.pheromone_burst ~= nil
 
-  -- Anchor 30s construction: skip recruit + absorb for any hive whose
-  -- storage record still has a building_until_tick in the future. The hive
-  -- is inert during construction.
-  for i = 0, per_tick - 1 do
-    local idx = (s.scan_cursor + i) % N + 1
-    local m = members[idx]
-    if m and m.entity and m.entity.valid then
-      local skip_for_construction = false
-      if m.kind == "hive" then
-        local record = Hive.get_storage(m.entity)
-        if Anchor.is_building(record) then skip_for_construction = true end
-      end
+  Telemetry.measure("scan.loop", function()
+    for i = 0, per_tick - 1 do
+      local idx = (s.scan_cursor + i) % N + 1
+      local m = members[idx]
+      if m and m.entity and m.entity.valid then
+        local skip_for_construction = false
+        if m.kind == "hive" then
+          local record = Hive.get_storage(m.entity)
+          if Anchor.is_building(record) then skip_for_construction = true end
+        end
 
-      if not skip_for_construction then
-        Telemetry.bump_scanned(1)
-        Telemetry.measure("recruit", function()
-          Creatures.recruit_at_member(m.entity, m.kind, ctx)
-        end)
-        if not absorb_paused then
-          if m.kind == "hive" then
-            Telemetry.measure("absorb", function()
-              Creatures.absorb_at_hive(m.entity)
-            end)
-          elseif m.kind == "hive_node" then
-            Telemetry.measure("absorb", function()
-              Creatures.absorb_at_node(m.entity, ctx)
-            end)
+        if not skip_for_construction then
+          Telemetry.bump_scanned(1)
+          Telemetry.measure("recruit", function()
+            Creatures.recruit_at_member(m.entity, m.kind, ctx)
+          end)
+          if not absorb_paused then
+            if m.kind == "hive" then
+              Telemetry.measure("absorb", function()
+                Creatures.absorb_at_hive(m.entity)
+              end)
+            elseif m.kind == "hive_node" then
+              Telemetry.measure("absorb", function()
+                Creatures.absorb_at_node(m.entity, ctx)
+              end)
+            end
           end
         end
       end
     end
-  end
+  end)
 
   s.scan_cursor = (s.scan_cursor + per_tick) % N
 

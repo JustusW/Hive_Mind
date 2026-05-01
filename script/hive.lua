@@ -4,9 +4,10 @@
 -- next to each hive and holds creature items + pollution items. It is the only
 -- inventory the network reads/writes from.
 
-local shared = require("shared")
-local State  = require("script.state")
-local Force  = require("script.force")
+local shared    = require("shared")
+local State     = require("script.state")
+local Force     = require("script.force")
+local Telemetry = require("script.telemetry")
 
 local M = {}
 
@@ -131,26 +132,33 @@ local function add_hive(result, seen, entity)
 end
 
 -- Every valid hive across all players.
+-- Wrapped in Telemetry.measure("hive_all") so the perf log shows the
+-- aggregate cost across every caller per flush window — many sites
+-- (Scan.tick × 2, Creep.tick, Death.collapse_orphans, Labels, Cost.consume,
+-- Supremacy.tick, …) call this each tick and the per-surface
+-- find_entities_filtered isn't free.
 function M.all()
-  local s = State.get()
-  local result = {}
-  local seen = {}
-  for _, bucket in pairs(s.hives_by_player) do
-    for _, hive_data in pairs(bucket) do
-      add_hive(result, seen, hive_data.entity)
+  return Telemetry.measure("hive_all", function()
+    local s = State.get()
+    local result = {}
+    local seen = {}
+    for _, bucket in pairs(s.hives_by_player) do
+      for _, hive_data in pairs(bucket) do
+        add_hive(result, seen, hive_data.entity)
+      end
     end
-  end
-  local hive_force = Force.get_hive()
-  if hive_force and game then
-    for _, surface in pairs(game.surfaces) do
-      local hives = surface.find_entities_filtered{
-        name = shared.entities.hive,
-        force = hive_force
-      }
-      for _, hive in pairs(hives) do add_hive(result, seen, hive) end
+    local hive_force = Force.get_hive()
+    if hive_force and game then
+      for _, surface in pairs(game.surfaces) do
+        local hives = surface.find_entities_filtered{
+          name = shared.entities.hive,
+          force = hive_force
+        }
+        for _, hive in pairs(hives) do add_hive(result, seen, hive) end
+      end
     end
-  end
-  return result
+    return result
+  end)
 end
 
 -- ── Worker corpse ─────────────────────────────────────────────────────────────
